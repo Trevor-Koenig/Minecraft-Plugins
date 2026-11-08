@@ -1,0 +1,10 @@
+build/
+.gradle/
+run/
+bin/
+.project
+.classpath
+.settings/
+*.classpath*.log
+.DS_Store
+Thumbs.db

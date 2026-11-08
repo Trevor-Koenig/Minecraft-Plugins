@@ -1,0 +1,9 @@
+main: tech.shulker.thebox.TheBox
+version: '${version}'
+name: TheBox
+author: Trevor Koenig
+description: A Shulker Tech Prison Paper plugin!
+api-version: '26.3'
+
+depend: [WorldEdit]
+
