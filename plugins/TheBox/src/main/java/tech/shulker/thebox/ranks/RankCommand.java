@@ -41,6 +41,9 @@ public class RankCommand {
                 .then(rankArgument()
                     .then(Commands.argument("cost", DoubleArgumentType.doubleArg(0))
                         .executes(this::setCost))))
+            .then(Commands.literal("setprestigemultiplier")
+                .then(Commands.argument("multiplier", DoubleArgumentType.doubleArg(0))
+                    .executes(this::setPrestigeMultiplier)))
             .then(Commands.literal("reload")
                 .executes(this::reload))
             .build();
@@ -78,6 +81,7 @@ public class RankCommand {
             <yellow>/thebox rank list</yellow> <gray>- the ladder, with names and costs</gray>
             <yellow>/thebox rank setname \\<rank> \\<name></yellow> <gray>- the name players see (MiniMessage, e.g. \\<light_purple>Shulker)</gray>
             <yellow>/thebox rank setcost \\<rank> \\<cost></yellow> <gray>- what ranking up to it costs</gray>
+            <yellow>/thebox rank setprestigemultiplier \\<multiplier></yellow> <gray>- extra cost per prestige level (0.5 = +50%)</gray>
             <yellow>/thebox rank reload</yellow> <gray>- re-read ranks.yml</gray>""");
         return Command.SINGLE_SUCCESS;
     }
@@ -88,7 +92,8 @@ public class RankCommand {
             sender.sendRichMessage("<gray>No ranks. Check ranks.yml, then run /thebox rank reload.");
             return Command.SINGLE_SUCCESS;
         }
-        sender.sendRichMessage("<gold>Ranks:");
+        sender.sendRichMessage("<gold>Ranks:</gold> <gray>(base costs; each prestige level adds "
+            + Math.round(ranks.getPrestigeMultiplier() * 100) + "%)");
         for (Rank rank : ranks.getAll()) {
             String cost = ranks.isFirst(rank) ? "starting rank" : VaultEconomy.format(sender, rank.getCost());
             sender.sendRichMessage("<yellow>" + rank.getId() + "</yellow> <gray>-</gray> <name> <gray>- <cost>",
@@ -120,6 +125,15 @@ public class RankCommand {
         if (ranks.isFirst(rank)) {
             sender.sendRichMessage("<gray>Note: players start at this rank, so this cost is never charged.");
         }
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private int setPrestigeMultiplier(CommandContext<CommandSourceStack> ctx) {
+        double multiplier = DoubleArgumentType.getDouble(ctx, "multiplier");
+        ranks.setPrestigeMultiplier(multiplier);
+        ranks.save();
+        ctx.getSource().getSender().sendRichMessage("<green>Each prestige level now adds " + Math.round(multiplier * 100)
+            + "% to rank costs (prestige 2 pays " + Math.round(100 * (1 + 2 * multiplier)) + "% of the base cost).");
         return Command.SINGLE_SUCCESS;
     }
 

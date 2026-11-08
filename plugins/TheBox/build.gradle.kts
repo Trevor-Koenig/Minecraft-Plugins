@@ -19,6 +19,8 @@ dependencies {
     compileOnly("com.sk89q.worldedit:worldedit-bukkit:7.4.6")
     // Vault's economy interface. Not transitive: VaultAPI's pom drags in an ancient Bukkit.
     compileOnly("com.github.MilkBowl:VaultAPI:1.7") { isTransitive = false }
+    // LuckPerms API (from Maven Central): the rank ladder is a LuckPerms track.
+    compileOnly("net.luckperms:api:5.5")
 }
 
 tasks.withType<JavaCompile> {

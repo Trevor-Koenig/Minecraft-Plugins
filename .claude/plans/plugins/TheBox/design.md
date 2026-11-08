@@ -2,6 +2,8 @@
 
 Status: **draft**. A living document, updated as decisions are made.
 
+The admin setup guide is [plugins/TheBox/SETUP.md](../../../../plugins/TheBox/SETUP.md). Update it whenever commands, permissions or setup steps change.
+
 ## 1. Goals
 - Deliver a classic prison-server experience first: mine → sell → rank up → prestige.
 - Then adjust based on what players actually want.
@@ -53,6 +55,13 @@ A player's own personal space, a classic prison feature.
 - One upgrade could be **selling things from the cell** (a shop in the cell).
 - Upgrades fit the "unlocks = permissions" model: buying an upgrade grants a permission.
 - Most details are still open (see section 7).
+
+### Food
+Decided 2026-11-08: no TheBox code. For launch, EssentialsX covers it (setup in `SETUP.md`, section 10):
+- A free food kit (`/kit food`) with a cooldown, granted to rank `a`.
+- `/feed` as a mid-ladder rank unlock (`essentials.feed`).
+
+Later, food can become part of the economy (a money sink in the market, farms in cells). If mines ever need it, WorldGuard's `feed-*` region flags can feed players automatically inside a region.
 
 ## 3. Integrations
 | Plugin | Role | Dependency |
@@ -163,7 +172,7 @@ Decisions (2026-11-08):
 - **Costs are set by hand** in `ranks.yml`, which can also be edited in-game with `/rank` admin commands (`thebox.admin`), like `/mine`.
 - **Ranks are A–Z** and nameable like mines: `/rank setname c <gold>Endermite`.
 - **Prestige grants a chat tag** (e.g. `[P3]`) **and cosmetic effects** (particle wings and the like). Cosmetics come from PlayerParticles: each prestige group grants `playerparticles.effect.<effect>` and `playerparticles.style.<style>` permissions (a particle needs both), which keeps "unlocks = permissions".
-- *(Proposed)* Rank costs scale with prestige by one config value: `cost × (1 + prestige-multiplier × prestige)`.
+- Rank costs scale with prestige by one config value: `cost × (1 + prestige-multiplier × prestige)` (built with step 7).
 
 `ranks.yml` sketch:
 ```yaml
@@ -176,12 +185,26 @@ ranks:
 
 Steps:
 - [ ] 1. Test server: add LuckPerms via `downloadPlugins`. By hand, create groups `a`, `b`, `c` on a `ranks` track, and `p1`, `p2` on a `prestige` track (just a few groups while developing). This is a chance to learn LuckPerms itself.
-- [ ] 2. LuckPerms API `compileOnly` dependency (`net.luckperms:api:5.5`), `depend: [WorldEdit, Vault, LuckPerms]`, look up the API through Bukkit's ServicesManager
+- [x] 2. LuckPerms API `compileOnly` dependency (`net.luckperms:api:5.5`), `depend: [WorldEdit, Vault, LuckPerms]`, look up the API through Bukkit's ServicesManager *(built 2026-11-08)*
 - [x] 3. `ranks.yml` (display names, costs) plus `/thebox rank setname|setcost|list|reload` *(built 2026-11-08, untested; doesn't touch LuckPerms yet)*. The first start writes a–z with placeholder costs (b = 1000, c = 2000, …).
 - [ ] 4. `/ranks`: the ladder, with the player's current rank and the next cost
-- [ ] 5. `/rankup`: charge through Vault, then promote along the track
-- [ ] 6. `/rankup max`
-- [ ] 7. `/prestige`: at Z, promote on the `prestige` track and move back to `a` on the `ranks` track
+- [x] 5. `/rankup`: charge through Vault, then promote along the track *(built 2026-11-08, untested)*
+- [x] 6. `/rankup max` *(built 2026-11-08, untested)*
+
+Steps 2, 5 and 6, implementation notes:
+- **New players start at rank `a`.** LuckPerms puts new players in its `default` group and [advises against replacing it](https://luckperms.net/wiki/Default-Groups). So TheBox adds the track's first group when a player joins, if they aren't on the track yet. Without this, LuckPerms' `promote` would put an off-track player into the *first* group (`ADDED_TO_FIRST_GROUP`), charging B's price for A.
+- LuckPerms code lives in `RankLadder`; `RankManager` only handles `ranks.yml`. The track name is fixed: `ranks`.
+- Charge first, then promote. If the promotion fails, the player is refunded.
+- Only global (context-free) group memberships count, and promotions are global, so ranks follow players across a network.
+- A rank on the track but missing from `ranks.yml` blocks rank-up (so it's never free by accident).
+- Rank-ups are announced to the whole server and written to the server log.
+- `/rankup max` ranks up until the next one would fail, then announces once.
+- [x] 7. `/prestige`: at Z, promote on the `prestige` track and move back to `a` on the `ranks` track *(built 2026-11-08, untested)*
+  - `/prestige` explains what will happen (or what the player still needs); `/prestige confirm` does it, because losing your rank by accident would hurt.
+  - Free: reaching the top rank is the cost. The balance is kept (open question below).
+  - A first prestige uses LuckPerms' `ADDED_TO_FIRST_GROUP` result (adds `p1`), which the API counts as a success.
+  - Rank costs scale with prestige: `cost × (1 + prestige-multiplier × prestige)`, default 0.5. Set with `/thebox rank setprestigemultiplier` or in `ranks.yml`.
+  - Prestige-ups are announced to the whole server and written to the server log.
 - [ ] 8. Chat tags: `[P3] [C] Name: message` in chat
 - [ ] 9. Prestige cosmetics: install PlayerParticles (if it supports 26.3), and decide which styles each prestige level unlocks
 - Later: a `/rank setup` command that creates all 26 groups and the track, if creating them by hand gets tedious.

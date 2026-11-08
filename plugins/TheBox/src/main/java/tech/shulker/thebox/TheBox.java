@@ -4,13 +4,17 @@ import com.mojang.brigadier.Command;
 import io.papermc.paper.command.brigadier.Commands;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import java.util.List;
+import net.luckperms.api.LuckPerms;
 import net.milkbowl.vault.economy.Economy;
 import org.bukkit.plugin.java.JavaPlugin;
 import tech.shulker.thebox.mines.MineCommand;
 import tech.shulker.thebox.mines.MineManager;
 import tech.shulker.thebox.mines.MinesCommand;
+import tech.shulker.thebox.ranks.PrestigeCommand;
 import tech.shulker.thebox.ranks.RankCommand;
+import tech.shulker.thebox.ranks.RankLadder;
 import tech.shulker.thebox.ranks.RankManager;
+import tech.shulker.thebox.ranks.RankupCommand;
 import tech.shulker.thebox.sell.PriceManager;
 import tech.shulker.thebox.sell.SellCommand;
 import tech.shulker.thebox.sell.VaultEconomy;
@@ -42,6 +46,19 @@ public class TheBox extends JavaPlugin {
         RankManager rankManager = new RankManager(this);
         rankManager.load();
 
+        // Rank ladder (players' ranks live in LuckPerms). LuckPerms is a hard dependency, so it has
+        // already enabled and registered its API with Bukkit's services manager.
+        RankLadder ladder = new RankLadder(getServer().getServicesManager().load(LuckPerms.class));
+        getServer().getPluginManager().registerEvents(ladder, this); // puts players on the first rank when they join
+        if (ladder.getTrack() == null) {
+            getLogger().warning("LuckPerms has no '" + RankLadder.TRACK + "' track yet: /rankup won't work until you create it (/lp createtrack "
+                + RankLadder.TRACK + ").");
+        }
+        if (ladder.getPrestigeTrack() == null) {
+            getLogger().warning("LuckPerms has no '" + RankLadder.PRESTIGE_TRACK + "' track yet: /prestige won't work until you create it (/lp createtrack "
+                + RankLadder.PRESTIGE_TRACK + ").");
+        }
+
         // Economy check. runTask runs on the first server tick, after every plugin has enabled,
         // so the economy plugin has had its chance to register with Vault by then.
         getServer().getScheduler().runTask(this, () -> {
@@ -59,6 +76,8 @@ public class TheBox extends JavaPlugin {
             // Player commands stay short and top-level, like on other prison servers.
             event.registrar().register(new MinesCommand(mineManager).createNode(), "Teleport to a mine you've unlocked");
             event.registrar().register(sellCommand.createNode(), "Sell items for money");
+            event.registrar().register(new RankupCommand(rankManager, ladder, getLogger()).createNode(), "Buy the next rank");
+            event.registrar().register(new PrestigeCommand(rankManager, ladder, getLogger()).createNode(), "Start the ranks again with a prestige level");
 
             // Admin commands all live under /thebox. Brigadier trees compose: each feature's built
             // node is attached as a child, and the one .requires here guards (and hides) them all.

@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -17,6 +18,10 @@ public class RankManager {
     private final JavaPlugin plugin;
     private final File file;
     private final Map<String, Rank> ranks = new LinkedHashMap<>(); // keeps ladder order, a to z
+
+    /** Each prestige level adds this share of a rank's base cost: 0.5 means +50% per level. */
+    private static final double DEFAULT_PRESTIGE_MULTIPLIER = 0.5;
+    private double prestigeMultiplier = DEFAULT_PRESTIGE_MULTIPLIER;
 
     public RankManager(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -32,6 +37,20 @@ public class RankManager {
         return ranks.get(id);
     }
 
+    /** The display name of the rank with this id, or the id in capitals if it isn't in ranks.yml. */
+    public String getDisplayName(String id) {
+        Rank rank = ranks.get(id);
+        return rank != null ? rank.getDisplayName() : id.toUpperCase(Locale.ROOT);
+    }
+
+    public double getPrestigeMultiplier() { return prestigeMultiplier; }
+    public void setPrestigeMultiplier(double multiplier) { this.prestigeMultiplier = multiplier; }
+
+    /** What ranking up to this rank costs a player at the given prestige level. */
+    public double getCost(Rank rank, int prestige) {
+        return rank.getCost() * (1 + prestigeMultiplier * prestige);
+    }
+
     /** True for the first rank, which players start at, so its cost is never charged. */
     public boolean isFirst(Rank rank) {
         return !ranks.isEmpty() && ranks.values().iterator().next() == rank;
@@ -40,6 +59,7 @@ public class RankManager {
     /** (Re)loads ranks.yml. The first time, writes the default ladder (a to z) with placeholder costs. */
     public void load() {
         ranks.clear();
+        prestigeMultiplier = DEFAULT_PRESTIGE_MULTIPLIER;
         if (!file.exists()) {
             createDefaults();
             save();
@@ -47,6 +67,7 @@ public class RankManager {
         }
 
         YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
+        prestigeMultiplier = Math.max(0, yaml.getDouble("prestige-multiplier", DEFAULT_PRESTIGE_MULTIPLIER));
         ConfigurationSection section = yaml.getConfigurationSection("ranks");
         if (section == null) {
             plugin.getLogger().warning("ranks.yml has no 'ranks' section; there are no ranks.");
@@ -71,8 +92,10 @@ public class RankManager {
         yaml.options().setHeader(List.of(
             "TheBox ranks, in ladder order. Each rank's id is also its LuckPerms group name.",
             "cost: what it costs to rank up to that rank. The first rank is where players start, so its cost is unused.",
+            "prestige-multiplier: each prestige level adds this share of the cost (0.5 = +50% per level).",
             "Edited by /thebox rank commands. You can also edit this file by hand: run /thebox rank reload afterwards,",
             "otherwise the next /thebox rank change will overwrite your edits."));
+        yaml.set("prestige-multiplier", prestigeMultiplier);
         for (Rank rank : ranks.values()) {
             String path = "ranks." + rank.getId() + ".";
             if (rank.hasDisplayName()) {
