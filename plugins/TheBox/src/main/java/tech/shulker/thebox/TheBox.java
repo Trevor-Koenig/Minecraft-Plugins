@@ -22,12 +22,12 @@ public class TheBox extends JavaPlugin {
             event.registrar().register(MineCommand.createNode(), "Manage prison mines")
         );
 
-        getLogger().info(getDescription().getName() + " has been enabled!");
+        getLogger().info(getPluginMeta().getName() + " has been enabled!");
     }
 
     @Override
     public void onDisable() {
-        getLogger().info(getDescription().getName() + " has been disabled!");
+        getLogger().info(getPluginMeta().getName() + " has been disabled!");
     }
     
 }

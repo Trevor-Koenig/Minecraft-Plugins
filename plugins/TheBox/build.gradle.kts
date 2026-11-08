@@ -10,11 +10,12 @@ version = "1.0.0-SNAPSHOT"
 repositories {
     mavenCentral()
     maven("https://repo.papermc.io/repository/maven-public/")
+    maven("https://maven.enginehub.org/repo/") 
 }
 
 dependencies {
     compileOnly("io.papermc.paper:paper-api:26.3.build.+")
-    
+    compileOnly("com.sk89q.worldedit:worldedit-bukkit:7.4.6") 
     
 }
 

@@ -22,5 +22,6 @@ Only when the owner asks you to drive (e.g. "you drive for a bit"). Return to tu
 - A monorepo of customizations (plugins, mods, datapacks) for the owner's personal server.
 - Plugins target **Paper 26.3** (Java 25+, Gradle Kotlin DSL, run-paper for a local test server). Mod loader not chosen yet.
 - Layout: `plugins/`, `mods/`, `datapacks/`, one standalone Gradle project per customization (e.g. `plugins/TheBox`, a prison plugin).
+- Plans and design docs live in `.claude/plans/`, mirroring the repo layout (e.g. `.claude/plans/plugins/TheBox/design.md`). Read the relevant plan before working on a customization, and keep its milestones up to date.
 - Never read files under `plugins/*/run/` (server logs, player data) without asking; see `.claude/settings.json`.
 - License: `AGPL-3.0-or-later` (see `LICENSE`, which must stay word-for-word canonical). Use SPDX headers in source files.
