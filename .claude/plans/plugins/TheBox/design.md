@@ -44,20 +44,56 @@ TheBox doesn't need to know about markets or plots. This also lets external sour
 
 ### Market
 A player-run market area where players buy or rent **stalls**, build their store, and run **shops** that sell or buy items.
-- **Stalls:** protected regions that players **rent** (not buy), limited to **one stall per player per marketplace** (WorldGuard plus a stall plugin). Rent is an ongoing money sink, which prison economies need, and stalls of inactive players free up on their own when rent lapses. AreaShop can enforce the limit through its "limit groups."
-- **Shops:** chest shops inside stalls that sell to or buy from players, paid through Vault.
-- **`/market`:** teleports players to the market area. Access can be a rank unlock (`thebox.market`).
-- TheBox's part is small: the `/market` command and its permission gate. Stalls and shops come from integrated plugins.
+- **Stalls:** protected regions that players **rent** (not buy), limited to **one stall per player per marketplace**. Renters can build in their stall (WorldGuard region membership). Rent is an ongoing money sink, which prison economies need, and stalls of inactive players free up on their own when rent lapses.
+- **Shops:** chest shops inside stalls that sell resources and tools to players, or buy them, paid through Vault. **QuickShop-Hikari** supports 26.3 (checked 2026-11-08; ChestShop lists up to 26.2).
+- **`/market`:** teleports players to a marketplace. **Several marketplaces** must be supported from the start, even though the server starts with one (decided 2026-11-08): with one, `/market` goes straight there; with several, it opens a chest menu to pick one. Each stall belongs to one marketplace.
+- **Settings, decided 2026-11-08** (all configurable):
+  - Admins create stalls from a WorldEdit selection and set each stall's daily rent.
+  - Rent is per real-world day; players can prepay up to 7 days, and rent auto-renews from the balance.
+  - Lapsed rent: 3-day grace period (stall frozen), then eviction to the impound; unclaimed impound is auto-sold after 30 days.
+  - Anyone can visit with `/market`; renting requires `thebox.market.rent` (granted to a rank).
+  - Renters can trust up to 2 helpers to build.
+  - Leaving early (unrenting): contents go to the impound, no refund.
+  - QuickShop shops are allowed only in a stall you rent (or a cell with the shop upgrade).
+  - Players rent by standing in a free stall and running `/market rent`.
+- **Decided (2026-11-08): TheBox custom-codes all market logic** (stalls, renting, eviction, `/market`); only the shop interfaces come from QuickShop-Hikari. The usual stall-rental plugins look unmaintained anyway (AreaShop's last release was 2019; AdvancedRegionMarket's was March 2025). Stalls are the same machinery as cells (a WorldGuard region a player rents or owns, plus payments), so one shared TheBox module serves both.
+- **When rent lapses** *(decided 2026-11-08: the impound flow; grace period and impound expiry lengths still to pick)*: prepaid rent that auto-renews from the balance, warnings, then a grace period where the stall stays intact; after that, eviction moves everything (container contents, the blocks themselves as items, item frames and armor stands) into the player's impound (`/market claim`), and the stall resets to empty. Optionally, unclaimed impound is auto-sold at market value after a while (unpriced or customized items count as $0).
+- Clearing a stall with WorldEdit doesn't fire block events, so TheBox must remove that stall's QuickShop shops through QuickShop's API, or QuickShop would keep "ghost" shops.
 
 ### Cell
 A player's own personal space, a classic prison feature.
 - Players can **buy upgrades** for their cell.
 - One upgrade could be **selling things from the cell** (a shop in the cell).
 - Upgrades fit the "unlocks = permissions" model: buying an upgrade grants a permission.
-- Most details are still open (see section 7).
+- **Bigger cells: tiers, decided 2026-11-08.** Both approaches, combined:
+  - **Within a tier, grow in place,** up to **3 size upgrades**. Each cell's plot reserves room for its tier's largest size, and an upgrade widens the buildable WorldGuard region. Nothing is copied.
+  - **To go beyond that, move to a cell in the next tier** (e.g. a different, bigger "cell block"). The build comes along: copy the old cell with WorldEdit (`ForwardExtentCopy` with `setCopyingEntities(true)`; WorldEdit keeps block-entity data like chest contents and sign text, and entities like item frames and armor stands), paste it into the new cell, verify, and only then clear the old one. The order matters: a failure halfway must never lose or duplicate items.
+- **Prestige:** cells **survive** prestige (they're a separate, money-based progression), while bigger tiers *require* a rank or prestige (`thebox.cell.tier.<n>`, granted as usual). Decided 2026-11-08.
+- **Decided 2026-11-08:**
+  - **Cell blocks are built by hand** and each cell is **registered** from WorldEdit selections, like stalls. For in-place growth, an admin registers a cell's base size plus each larger size.
+  - **Growth is invisible:** no glass rings or markers; the cell just gets bigger. (How the old boundary disappears is a question for the owner; see M6.)
+  - **Every player gets a free first cell when they first join.** Hand-built cells can run out, so if none is free the player gets one as soon as one is registered, and admins are warned.
+  - One cell per player; 3 tiers to start; admins set the price of each upgrade and tier move; v1 upgrades besides size: a cell shop and more trusted builders; others can visit unless the owner locks the cell; no hostile mob spawning; cells of inactive players are kept for now; a tier move pastes the old build centered in the new cell.
+
+### PvP
+- PvP is allowed **in mines** only. That's WorldGuard config: `pvp deny` everywhere else (`__global__` and spawn), `pvp allow` in mine regions.
+- **Combat logging** (quitting or teleporting out mid-fight) needs a plugin. **PvPManager** supports 26.3 (checked 2026-11-08); its combat tag can block commands like `/mines` during a fight.
+- **Decided 2026-11-08:** PvP in **every mine except the starter mine** (the one rank `a` unlocks), so new players are safe. Dying drops items as usual (vanilla; `keepInventory` stays off). Mine resets during fights need no special handling.
+
+### Gang *(paused, 2026-11-08)*
+Paused by the owner; not part of the first release. Notes kept for later. A group of players who **pool resources** (a shared gang bank through Vault) and form **alliances** with other gangs. Likely also: no friendly fire between members and allies, gang chat, a gang leaderboard. SimpleClans, the established plugin for this, last released in 2023, so gangs probably belong in TheBox.
+
+### Black market *(pinned, 2026-11-08)*
+An idea to come back to later; nothing designed yet.
+
+### Menus
+Decided 2026-11-08: players use **chest menus** (clickable inventory GUIs) where they fit: choosing a marketplace, the impound, cell upgrades. Actions also have commands. One small, reusable menu helper serves every feature.
+
+### Chat
+Decided 2026-11-08: **TheBox formats chat itself** with Paper's chat API: `[P2] [C] Name: message` (prestige, rank; a gang tag if gangs return).
 
 ### Food
-Decided 2026-11-08: no TheBox code. For launch, EssentialsX covers it (setup in `SETUP.md`, section 10):
+Decided 2026-11-08: no TheBox code. For launch, EssentialsX covers it (setup in `SETUP.md`, "Food"):
 - A free food kit (`/kit food`) with a cooldown, granted to rank `a`.
 - `/feed` as a mid-ladder rank unlock (`essentials.feed`).
 
@@ -70,8 +106,10 @@ Later, food can become part of the economy (a money sink in the market, farms in
 | Vault + an economy plugin (e.g. EssentialsX) | Balances: sell income, rank-up costs | `depend` (from M2: Selling) |
 | LuckPerms | The rank ladder (a track), each player's rank and prestige, and the permissions ranks grant | `depend` (from M3: Ranks) |
 | PlayerParticles | Cosmetic particle effects (wings, halo, …) unlocked by prestige, one permission per style | Runs alongside TheBox; no code dependency. Latest build lists up to 26.2, so check 26.3 support first |
-| WorldGuard + a stall plugin (candidates: AreaShop, AdvancedRegionMarket) | Rentable market stalls | Runs alongside TheBox; probably no code dependency |
-| A chest-shop plugin (candidates: QuickShop-Hikari, ChestShop) | Player shops inside stalls | Runs alongside TheBox; probably no code dependency |
+| WorldGuard | From launch: protects the world (`__global__` passthrough deny) and lets players break blocks in mines (a `mine_<id>` region per mine with `block-break allow`). Who may *enter* a mine stays TheBox's job (rank permissions). Setup in `SETUP.md`. | Runs alongside TheBox; no code dependency yet |
+| WorldGuard API | Rentable market stalls and cells: TheBox creates regions and adds renters/owners as members (stall plugins look unmaintained, see Market) | Code dependency (from M5) |
+| QuickShop-Hikari | Player chest shops in stalls (and maybe cells) | Runs alongside TheBox; probably no code dependency |
+| PvPManager | Combat tagging, combat-log handling | Runs alongside TheBox (from M4) |
 
 ## 4. Commands and permissions
 Compare against existing prison servers before finalizing.
@@ -134,7 +172,13 @@ All of M1 passed in-game testing on 2026-11-07.
 - [x] Reset when X% has been mined: `/mine setresetpercent <mine> <percent>`, counting block breaks inside the mine *(built, untested)*
 - [x] Players without `thebox.mine.<id>` can't walk or teleport into a mine (`PlayerMoveEvent`) *(built, untested)*
 - [x] Announce resets to players in or within 32 blocks of the mine *(built, untested)*
+- [x] Reset changes requested 2026-11-08 *(built, untested)*:
+  - Players inside are lifted **straight up** onto the refilled mine (same x/z and facing), not sent to the teleport point. Falls back to the teleport point if the space above the mine is blocked.
+  - **Warnings in chat** to players in or near the mine: 1 minute, 10 seconds, then 3, 2, 1, sent by the once-a-second reset timer.
+  - **Percentage resets** start a 10-second countdown (10-second warning, then 3, 2, 1) instead of resetting on the next tick.
+  - `/thebox mine reset` (admin) still resets immediately.
 - [ ] Watch reset performance on very large mines.
+- [ ] *(idea)* `/thebox mine create` also creates the mine's WorldGuard region (`mine_<id>`, `block-break allow`) through the WorldGuard API, so the two can't drift apart. Today it's a manual step in `SETUP.md`.
 - Note: the % counter only counts player block breaks, not explosions, and it resets on server restart.
 
 ### M2: Selling
@@ -209,26 +253,52 @@ Steps 2, 5 and 6, implementation notes:
 - [ ] 9. Prestige cosmetics: install PlayerParticles (if it supports 26.3), and decide which styles each prestige level unlocks
 - Later: a `/rank setup` command that creates all 26 groups and the track, if creating them by hand gets tedious.
 
+**Change of plan (2026-11-08):** the owner wants markets, cells and PvP in place before testing with real users, so the first release moves to after M6. (Gangs were also on that list, then paused.)
+
+### M4: PvP in mines
+Mostly configuration: WorldGuard `pvp` flags plus PvPManager for combat tagging.
+- [x] WorldGuard PvP flags documented in `SETUP.md` (`__global__ pvp deny`, `pvp allow` in each mine region except the starter mine)
+- [x] PvPManager (4.0.30, Modrinth `eKgXGdO2`) chosen and documented in `SETUP.md`. Its defaults fit; verified in its config and source (2026-11-08): commands blocked in combat, kill on logout, `/pvp` toggle overridden in `pvp allow` regions. Must keep `Unsafe Teleports: false`, or it cancels TheBox's reset lift (a `PLUGIN` teleport) mid-fight. Turn off its auto-update.
+- [ ] Add it to the test server (`downloadPlugins`) and check the action-bar placeholders without PlaceholderAPI.
+- [ ] Test: PvP in a mine, none at spawn or in the starter mine, items drop on death.
+
+### M5: Market
+Rentable stalls as a TheBox module (decided: all market logic is custom; see Market above), QuickShop-Hikari shops inside them, and `/market`.
+
+Steps (drafted 2026-11-08):
+- [ ] 1. WorldGuard API `compileOnly` dependency, `depend: [..., WorldGuard]`; QuickShop-Hikari on the test server
+- [ ] 2. Data: marketplaces (id, display name, teleport point) and stalls (id, marketplace, region, daily rent, renter, paid-until, helpers, state), saved in `markets.yml`
+- [ ] 3. Admin commands: `/thebox market create|setname|settp|delete|list|reload`, and `/thebox market stall create <market> <stall> <rent>` from a WorldEdit selection, which also creates the stall's WorldGuard region
+- [ ] 4. Chest menu helper (reusable), then `/market`: straight to the only marketplace, or a menu to pick one
+- [ ] 5. Renting: `/market rent [days]` standing in a free stall (makes the renter a region member), `/market extend`, `/market info`, `/market trust|untrust`, `/market autorenew`; one stall per player per marketplace; `thebox.market.rent`
+- [ ] 6. Rent timer: auto-renew from the balance, warnings, grace period (frozen stall), eviction
+- [ ] 7. Impound: eviction and unrenting move container contents, blocks (as items) and item frames / armor stands into the player's impound (full item data kept), clear the stall, and `/market claim` opens it as a chest menu; auto-sell after 30 days
+- [ ] 8. QuickShop-Hikari: shops only in your own stall, closed during the grace period, removed on eviction (through its API)
+- [ ] 9. `SETUP.md`: market setup
+
+### M6: Cells
+Personal cells with buyable upgrades and bigger cells (see Cell above). Hand-built and registered like stalls, so it reuses the market's region module. To be planned in detail.
+
+### Gangs *(paused 2026-11-08)*
+Gang bank, alliances, friendly-fire rules, gang chat. See Gang above.
+
 ### ★ First playable release
-After M1–M3 the core loop (mine → sell → rank up) works. Deploy TheBox to the real server and gather player feedback before building further.
-
-### M4: Market
-Comes after the first playable release, since shops need the economy. Set up the market area with integrated stall and shop plugins, then add `/market` plus the `thebox.market` permission in TheBox. To be planned in detail.
-
-### M5: Cells
-Personal cells with buyable upgrades, including the ability to sell from the cell. To be planned in detail.
+After M1–M6, plus M3's remaining steps (`/ranks`, chat tags). Deploy TheBox to the real server and gather player feedback before building further.
 
 ## 7. Open questions
 - ~~Rank-up costs~~: decided, set by hand per rank (see M3).
 - ~~Rank names~~: decided, A–Z, each nameable (see M3). Mine names are still open.
 - ~~What prestige grants~~: decided, a chat tag and cosmetics (see M3).
 - ~~Player progress storage~~: decided, LuckPerms (see M3).
-- Prestige: does it also reset the player's balance? (Many prison servers do.)
-- Chat tags (M3 step 8): does TheBox format chat itself with [Paper's chat API](https://docs.papermc.io/paper/dev/chat-events/), or provide placeholders for a chat plugin? Owning chat is simplest to start; placeholders (PlaceholderAPI) are the standard choice once there's also a scoreboard or tab list.
+- ~~Prestige resets the balance?~~ Decided: no, since rank costs already rise with prestige.
+- ~~Chat tags~~: decided, TheBox formats chat itself with [Paper's chat API](https://docs.papermc.io/paper/dev/chat-events/) (see Chat). PlaceholderAPI can be added later if a scoreboard or tab list needs ranks too.
 - ~~Sell prices~~: decided, global for now (see M2).
 - ~~Economy plugin~~: decided, **EssentialsX + VaultUnlocked** (see M2).
 - ~~Items with custom data~~: decided, `/sell all` skips them (see M2).
 - **Monetization:** read Mojang's Usage Guidelines (https://www.minecraft.net/en-us/usage-guidelines) before planning any store. Any store should grant permissions, which TheBox honors, rather than TheBox selling things directly.
 - ~~Reset implementation~~: decided on a WorldEdit `EditSession` with a `RandomPattern`. Revisit only if huge mines cause lag.
-- Market: which stall and shop plugins to use (check Paper 26.3 support first), rent pricing and duration, and whether there's one marketplace or several (several would make `/market` take a name).
-- Cells: how players get one (a free starter cell, or bought?), which upgrades exist besides selling, whether cell shops compete with the market, and whether cells come from an integrated plugin or from TheBox.
+- Market: ~~build or integrate~~ decided, TheBox builds it (shops from QuickShop-Hikari). ~~What happens when rent lapses~~: decided, the impound flow (see Market). ~~Settings~~: decided (see Market): several marketplaces supported, 7-day prepay, 3-day grace, 30-day impound. Still open: actual rent prices (set per stall in-game).
+- Cells: ~~how players get one~~ (free on first join), ~~tiers and prestige~~ (3 tiers, cells survive prestige), ~~layout~~ (hand-built, registered). Still open: how an in-place upgrade removes the old boundary (see M6), and whether cell shops compete with the market.
+- ~~PvP~~: decided, every mine except the starter mine; normal drops; no special reset handling (see PvP).
+- Gangs: paused. Defaults agreed before pausing: up to 8 members, leader/officers/members, creating costs money, 2–5 letter tag in chat, anyone deposits but only leader and officers withdraw, up to 3 mutual allies, no friendly fire, `/gc` chat.
+- Black market: pinned, come back later.

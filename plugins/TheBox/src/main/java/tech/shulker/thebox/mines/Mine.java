@@ -24,8 +24,14 @@ public class Mine {
     /** Custom teleport point, or null to use the center of the mine's top. */
     private Location customTeleport = null;
 
-    /** When the next automatic reset is due. Kept in memory only. */
+    /** When the next reset is due (timed, or a triggered countdown). Kept in memory only. */
     private long nextResetMillis = 0;
+
+    /** True while a percentage reset counts down. Kept in memory only. */
+    private boolean resetTriggered = false;
+
+    /** The last countdown warning sent (seconds left), so each is sent once. Kept in memory only. */
+    private int lastWarning = -1;
 
     /** Name players see, in MiniMessage format (e.g. "<light_purple>Shulker Shell Shaft"), or null to show the id. */
     private String displayName = null;
@@ -70,7 +76,6 @@ public class Mine {
             && location.getBlockZ() >= minZ && location.getBlockZ() <= maxZ;
     }
 
-    /** Where players are sent: the custom point if set, otherwise standing on the center of the mine's top. */
     /** True if the location is inside the mine or within {@code margin} blocks of it. */
     public boolean isNear(Location location, int margin) {
         return world.equals(location.getWorld())
@@ -79,6 +84,7 @@ public class Mine {
             && location.getBlockZ() >= minZ - margin && location.getBlockZ() <= maxZ + margin;
     }
 
+    /** Where /mines sends players: the custom point if set, otherwise standing on the center of the mine's top. */
     public Location getTeleport() {
         if (customTeleport != null) {
             return customTeleport;
@@ -98,13 +104,37 @@ public class Mine {
         scheduleNextReset();
     }
 
-    public boolean isResetDue(long nowMillis) {
-        return resetIntervalSeconds > 0 && nowMillis >= nextResetMillis;
+    /** True if a reset is coming: the mine resets on a timer, or a percentage reset is counting down. */
+    public boolean isResetScheduled() {
+        return resetIntervalSeconds > 0 || resetTriggered;
     }
 
+    public boolean isResetDue(long nowMillis) {
+        return isResetScheduled() && nowMillis >= nextResetMillis;
+    }
+
+    public long getNextResetMillis() { return nextResetMillis; }
+
+    /** Called after each reset: starts the next timed interval and clears any countdown state. */
     public void scheduleNextReset() {
         nextResetMillis = System.currentTimeMillis() + resetIntervalSeconds * 1000L;
+        resetTriggered = false;
+        lastWarning = -1;
     }
+
+    /** Starts a countdown to a reset in {@code seconds}, unless a timed reset is already due sooner. */
+    public void triggerReset(int seconds) {
+        long at = System.currentTimeMillis() + seconds * 1000L;
+        if (!isResetScheduled() || at < nextResetMillis) {
+            nextResetMillis = at;
+        }
+        resetTriggered = true;
+    }
+
+    public boolean isResetTriggered() { return resetTriggered; }
+
+    public int getLastWarning() { return lastWarning; }
+    public void setLastWarning(int secondsLeft) { this.lastWarning = secondsLeft; }
 
     /** The display name if one is set, otherwise the id. MiniMessage format. */
     public String getDisplayName() { return displayName != null ? displayName : id; }

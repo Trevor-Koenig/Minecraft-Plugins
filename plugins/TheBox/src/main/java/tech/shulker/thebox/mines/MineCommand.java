@@ -130,7 +130,7 @@ public class MineCommand {
             <yellow>/thebox mine removeblock \\<mine> \\<block></yellow> <gray>- remove a block from the mix</gray>
             <yellow>/thebox mine setresettime \\<mine> \\<seconds></yellow> <gray>- automatic reset interval (0 = off)</gray>
             <yellow>/thebox mine setname \\<mine> \\<name></yellow> <gray>- the name players see (MiniMessage, e.g. \\<gold>Gold Rush)</gray>
-            <yellow>/thebox mine setresetpercent \\<mine> \\<percent></yellow> <gray>- reset once this % is mined (0 = off)</gray>
+            <yellow>/thebox mine setresetpercent \\<mine> \\<percent></yellow> <gray>- reset (after a 10-second countdown) once this % is mined (0 = off)</gray>
             <yellow>/thebox mine settp \\<mine></yellow> <gray>- set the teleport point to where you stand</gray>
             <yellow>/thebox mine delete \\<mine></yellow> <gray>- delete a mine (blocks stay)</gray>
             <yellow>/thebox mine reload</yellow> <gray>- re-read mines.yml</gray>""");

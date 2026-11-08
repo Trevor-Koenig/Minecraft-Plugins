@@ -39,10 +39,15 @@ public class MineManager implements Listener {
     private final JavaPlugin plugin;
     private final File file;
     private final Map<String, Mine> mines = new TreeMap<>(); // sorted by id, so lists come out alphabetical
-    private final Set<Mine> pendingResets = new HashSet<>();  // percentage resets queued for the next tick
 
     /** Players within this many blocks of a mine are told when it resets. */
     private static final int ANNOUNCE_RADIUS = 32;
+
+    /** Seconds before a reset at which nearby players get a warning in chat. */
+    private static final Set<Integer> WARN_AT_SECONDS = Set.of(60, 10, 3, 2, 1);
+
+    /** A percentage reset waits this long, so players get the 10-second warning and the countdown. */
+    private static final int PERCENT_RESET_COUNTDOWN_SECONDS = 10;
 
     public MineManager(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -76,29 +81,58 @@ public class MineManager implements Listener {
 
     // ---------------------------------------------------------------- resetting
 
-    /** Starts a timer that checks once a second (20 ticks) for mines whose automatic reset is due. */
+    /**
+     * Starts a timer that runs once a second (20 ticks): it resets mines whose reset is due, and sends
+     * countdown warnings (1 minute, 10 seconds, 3, 2, 1) to players near mines about to reset.
+     */
     public void startResetTimer() {
         plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
             long now = System.currentTimeMillis();
             for (Mine mine : mines.values()) {
                 if (mine.isResetDue(now)) {
                     reset(mine);
+                } else if (mine.isResetScheduled()) {
+                    // Rounded up, so "3" means 2-3 seconds left. The timer can run a little late under lag,
+                    // so lastWarning makes sure no warning is sent twice.
+                    int secondsLeft = (int) ((mine.getNextResetMillis() - now + 999) / 1000);
+                    if (WARN_AT_SECONDS.contains(secondsLeft) && mine.getLastWarning() != secondsLeft) {
+                        mine.setLastWarning(secondsLeft);
+                        warn(mine, secondsLeft);
+                    }
                 }
             }
         }, 20L, 20L);
     }
 
+    private void warn(Mine mine, int secondsLeft) {
+        String when = secondsLeft == 60 ? "in 1 minute."
+            : secondsLeft > 3 ? "in " + secondsLeft + " seconds."
+            : "in <red>" + secondsLeft + "</red>...";
+        for (Player player : playersNear(mine)) {
+            player.sendRichMessage("<gold>Mine <white><name></white> resets " + when,
+                Placeholder.parsed("name", mine.getDisplayName()));
+        }
+    }
+
+    /** Players inside the mine or within ANNOUNCE_RADIUS blocks of it. */
+    private Set<Player> playersNear(Mine mine) {
+        Set<Player> near = new HashSet<>();
+        for (Player player : mine.getWorld().getPlayers()) {
+            if (mine.isNear(player.getLocation(), ANNOUNCE_RADIUS)) {
+                near.add(player);
+            }
+        }
+        return near;
+    }
+
     /** Moves players out of the mine, then refills it with its block mix. */
     public void reset(Mine mine) {
-        // 1. Player safety: anyone inside would end up buried, so move them to the mine's teleport point first.
-        //    Remember who was near the mine (or moved out of it) so they can be told about the reset afterwards.
-        Set<Player> toNotify = new HashSet<>();
-        for (Player player : mine.getWorld().getPlayers()) {
+        // 1. Player safety: anyone inside would end up buried, so lift them straight up onto the mine's top
+        //    first. Remember who was near the mine so they can be told about the reset afterwards.
+        Set<Player> toNotify = playersNear(mine);
+        for (Player player : toNotify) {
             if (mine.contains(player.getLocation())) {
-                player.teleport(mine.getTeleport());
-                toNotify.add(player);
-            } else if (mine.isNear(player.getLocation(), ANNOUNCE_RADIUS)) {
-                toNotify.add(player);
+                player.teleport(above(mine, player.getLocation()));
             }
         }
 
@@ -127,6 +161,18 @@ public class MineManager implements Listener {
         }
     }
 
+    /**
+     * The spot straight above {@code location}, standing on the mine's top layer, facing the same way.
+     * Falls back to the mine's teleport point if something is built there (a roof over the mine, say),
+     * so nobody is lifted into solid blocks.
+     */
+    private static Location above(Mine mine, Location location) {
+        Location up = location.clone();
+        up.setY(mine.getMaxY() + 1);
+        boolean clear = up.getBlock().isPassable() && up.clone().add(0, 1, 0).getBlock().isPassable();
+        return clear ? up : mine.getTeleport();
+    }
+
     /** Counts blocks broken inside mines and triggers percentage resets. Registered as a listener in TheBox. */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBlockBreak(BlockBreakEvent event) {
@@ -136,15 +182,10 @@ public class MineManager implements Listener {
                 continue;
             }
             mine.addBlockMined();
-            if (mine.isPercentResetDue() && pendingResets.add(mine)) {
-                // Reset on the next tick, not now: this break hasn't finished yet, so resetting immediately
-                // would refill the mine and then this break would still punch a hole in it.
-                plugin.getServer().getScheduler().runTask(plugin, () -> {
-                    pendingResets.remove(mine);
-                    if (mines.get(mine.getId()) == mine) { // skip if the mine was deleted or reloaded meanwhile
-                        reset(mine);
-                    }
-                });
+            if (mine.isPercentResetDue() && !mine.isResetTriggered()) {
+                // Don't reset now: start a short countdown, and the reset timer takes it from there
+                // (warnings, then the reset itself).
+                mine.triggerReset(PERCENT_RESET_COUNTDOWN_SECONDS);
             }
             return;
         }

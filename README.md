@@ -7,6 +7,14 @@ There is a directory containing the files I built for each of these types of "mo
 ## About this Repo
 This repo has been made for personal use and should not be used in a production environment without proper auditing.
 
+## Release Process
+git tag thebox-v1.0.0
+
+git push origin thebox-v1.0.0
+
+gh release create thebox-v1.0.0 plugins/TheBox/build/libs/TheBox-1.0.0.jar
+
+
 ## Not Affiliated with Mojang
 **NOT AN OFFICIAL MINECRAFT PRODUCT. NOT APPROVED BY OR ASSOCIATED WITH MOJANG OR MICROSOFT.**
 
