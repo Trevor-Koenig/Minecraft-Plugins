@@ -11,6 +11,7 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.ItemType;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -29,6 +30,27 @@ public class PriceManager {
     /** The price of one item of this type, or null if it can't be sold. */
     public Double getPrice(ItemType type) {
         return prices.get(type);
+    }
+
+    /** What a whole stack sells for: 0 if it has no price or is customized (renamed, enchanted, damaged...). */
+    public double getValue(ItemStack stack) {
+        ItemType type = typeOf(stack);
+        Double price = prices.get(type);
+        return price == null || !isPlain(stack, type) ? 0 : price * stack.getAmount();
+    }
+
+    /**
+     * The stack's item type. In Paper 26.3, ItemStack only exposes its type as the deprecated Material,
+     * so we convert straight to the registry-based ItemType here, in this one place.
+     */
+    @SuppressWarnings("deprecation")
+    public static ItemType typeOf(ItemStack stack) {
+        return stack.getType().asItemType();
+    }
+
+    /** True if the stack is a plain item: identical to a freshly created one apart from the amount. */
+    public static boolean isPlain(ItemStack stack, ItemType type) {
+        return stack.isSimilar(type.createItemStack());
     }
 
     public void setPrice(ItemType type, double price) {

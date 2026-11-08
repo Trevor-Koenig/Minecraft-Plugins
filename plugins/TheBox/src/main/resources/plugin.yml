@@ -5,11 +5,17 @@ author: Trevor Koenig
 description: A Shulker Tech Prison Paper plugin!
 api-version: '26.3'
 
-depend: [WorldEdit, Vault, LuckPerms]
+depend: [WorldEdit, WorldGuard, Vault, LuckPerms]
+# softdepend only orders loading: these enable first if installed. Multiverse-Core must load its worlds
+# before TheBox reads mines.yml and markets.yml.
+softdepend: [QuickShop-Hikari, Multiverse-Core]
 
 permissions:
   thebox.admin:
     description: Use all /thebox admin commands
+    default: op
+  thebox.market.rent:
+    description: Rent a market stall (grant it to the rank that unlocks renting)
     default: op
   # Per-mine access (thebox.mine.<id>) isn't listed here because mine ids are created in-game.
   # Undeclared permissions default to op-only; ranks will grant them to players later.

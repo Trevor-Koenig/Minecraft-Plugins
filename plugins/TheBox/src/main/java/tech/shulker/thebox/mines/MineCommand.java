@@ -11,10 +11,6 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.exceptions.DynamicCommandExceptionType;
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
 import com.mojang.brigadier.tree.LiteralCommandNode;
-import com.sk89q.worldedit.IncompleteRegionException;
-import com.sk89q.worldedit.WorldEdit;
-import com.sk89q.worldedit.bukkit.BukkitAdapter;
-import com.sk89q.worldedit.bukkit.BukkitPlayer;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.regions.Region;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
@@ -27,6 +23,7 @@ import org.bukkit.Location;
 import org.bukkit.block.BlockType;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
+import tech.shulker.thebox.utils.Selections;
 
 /** The admin command: /thebox mine create|delete|list|reset|addblock|removeblock|setresettime|settp|reload. */
 public class MineCommand {
@@ -149,13 +146,8 @@ public class MineCommand {
             throw MINE_EXISTS.create(id);
         }
 
-        // Read the player's WorldEdit selection: Bukkit player -> WorldEdit player -> session -> selection.
-        Region selection;
-        try {
-            BukkitPlayer worldEditPlayer = BukkitAdapter.adapt(player);
-            selection = WorldEdit.getInstance().getSessionManager().get(worldEditPlayer)
-                .getSelection(worldEditPlayer.getWorld());
-        } catch (IncompleteRegionException e) {
+        Region selection = Selections.get(player);
+        if (selection == null) {
             throw NO_SELECTION.create();
         }
 

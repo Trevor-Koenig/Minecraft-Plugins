@@ -32,6 +32,7 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.plugin.java.JavaPlugin;
+import tech.shulker.thebox.utils.SavedLocation;
 
 /** Owns all mines: storage in mines.yml, resetting, and the automatic-reset timer. */
 public class MineManager implements Listener {
@@ -39,6 +40,8 @@ public class MineManager implements Listener {
     private final JavaPlugin plugin;
     private final File file;
     private final Map<String, Mine> mines = new TreeMap<>(); // sorted by id, so lists come out alphabetical
+    /** mines.yml entries whose world isn't loaded, kept so saving doesn't delete them. */
+    private final Map<String, ConfigurationSection> unloadedMines = new TreeMap<>();
 
     /** Players within this many blocks of a mine are told when it resets. */
     private static final int ANNOUNCE_RADIUS = 32;
@@ -70,6 +73,7 @@ public class MineManager implements Listener {
     }
 
     public void add(Mine mine) {
+        unloadedMines.remove(mine.getId()); // a new mine with the same id replaces an inactive one
         mines.put(mine.getId(), mine);
         save();
     }
@@ -222,6 +226,7 @@ public class MineManager implements Listener {
     /** (Re)loads all mines from mines.yml. A missing file just means no mines yet. */
     public void load() {
         mines.clear();
+        unloadedMines.clear();
         YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
         ConfigurationSection section = yaml.getConfigurationSection("mines");
         if (section == null) {
@@ -236,7 +241,9 @@ public class MineManager implements Listener {
             }
             World world = plugin.getServer().getWorld(m.getString("world", ""));
             if (world == null) {
-                plugin.getLogger().warning("Skipping mine '" + id + "': world '" + m.getString("world") + "' isn't loaded.");
+                // Keep it as-is so the next save writes it back: skipping it would delete it from mines.yml.
+                plugin.getLogger().warning("Mine '" + id + "' is inactive: world '" + m.getString("world") + "' isn't loaded. It's kept in mines.yml.");
+                unloadedMines.put(id, m);
                 continue;
             }
 
@@ -262,7 +269,9 @@ public class MineManager implements Listener {
                 mine.getBlocks().put(BlockType.STONE, 100);
             }
 
-            mine.setCustomTeleport(m.getLocation("teleport"));
+            SavedLocation teleport = SavedLocation.read(m, "teleport");
+            // Older mines.yml files stored a Bukkit Location here; getLocation still reads those.
+            mine.setCustomTeleport(teleport != null ? teleport.toLocation() : m.getLocation("teleport"));
             mine.setResetIntervalSeconds(m.getInt("reset-interval-seconds", 0));
             mine.setResetPercent(Math.max(0, Math.min(100, m.getInt("reset-percent", 0))));
             mine.setDisplayName(m.getString("display-name"));
@@ -296,9 +305,16 @@ public class MineManager implements Listener {
             }
             Location teleport = mine.getCustomTeleport();
             if (teleport != null) {
-                yaml.set(path + "teleport", teleport);
+                // Plain values, not a Bukkit Location: a Location can't be read back if its world loads late.
+                SavedLocation.of(teleport).write(yaml, path + "teleport");
             }
         }
+        // Mines whose world wasn't loaded: written back unchanged.
+        unloadedMines.forEach((id, section) -> section.getValues(true).forEach((key, value) -> {
+            if (!(value instanceof ConfigurationSection)) {
+                yaml.set("mines." + id + "." + key, value);
+            }
+        }));
 
         try {
             yaml.save(file);

@@ -29,9 +29,15 @@ With the server **stopped**, put these jars directly in the server's `plugins/` 
 | EssentialsX | The economy (balances, `/pay`, `/balance`, `/eco`) |
 | LuckPerms | Ranks, prestige and permissions |
 | PvPManager | Combat tagging: no commands or logging out mid-fight |
+| QuickShop-Hikari *(optional)* | Player chest shops in market stalls |
 | PlayerParticles *(optional)* | Particle cosmetics for prestige rewards. Check that it supports your Minecraft version first. |
+| Multiverse-Core *(optional)* | Several worlds (say, one for mines and one for the market) |
 
 Start the server once so every plugin writes its config files, then stop it.
+
+**With Multiverse-Core:** TheBox waits for it to load its worlds before starting (it's a `softdepend`), so mines and stalls in Multiverse worlds are found. If a world is ever missing, its mines and stalls are kept in TheBox's files and simply sit idle until it's back. Two things to keep in mind:
+- WorldGuard flags are per world: run the `__global__` commands in section 8 in *each* world.
+- In a world with PvP mines, leave Multiverse's PvP setting for that world on. If a world has PvP turned off, no region can turn it back on.
 
 **Updating a plugin later** (including a new TheBox build): put the new jar in `plugins/update/` and restart. Paper swaps it in on startup, so you never end up with two versions in `plugins/` ([Paper's update guide](https://docs.papermc.io/paper/updating/)). Always restart rather than using `/reload`, which Paper doesn't support.
 
@@ -300,7 +306,50 @@ Two separate locks, on purpose:
 
 Ops can enter every mine whether or not they've unlocked it. Test locks as a non-op player.
 
-## 10. Prestige rewards
+## 10. Market (in-game)
+
+Players rent stalls in a market, build in them, and (with QuickShop-Hikari) run chest shops there. TheBox manages each stall's WorldGuard region, so there's no `/rg` work per stall.
+
+1. **Build the market:** stalls with floors and walls, and roofs if you like. Optionally protect the whole market area with a region of its own; stall regions have priority 10, so they win inside it.
+2. **Create the market**, standing where players should arrive:
+   ```
+   /thebox market create main
+   /thebox market setname main <gold>The Bazaar
+   ```
+   You can create more markets later; with several, `/market` shows a menu to pick one.
+3. **Create the stalls.** For each one, select with `//wand` only the **empty space players may build in** (above the floor, inside the walls), then:
+   ```
+   /thebox market stall create main s1 100
+   ```
+   `100` is the rent per day. TheBox refuses a selection that has blocks in it or overlaps another stall, and creates the WorldGuard region `thebox_stall_main_s1`. The floor and walls stay outside the region, so renters can't break them.
+4. **Let a rank rent stalls** (higher ranks inherit it):
+   ```
+   lp group c permission set thebox.market.rent true
+   ```
+5. Check with `/thebox market list` and `/thebox market stall list main`.
+
+**Settings** are in `plugins/TheBox/markets.yml` (run `/thebox market reload` after editing):
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `max-prepay-days` | 7 | How many days of rent players can pay ahead |
+| `grace-days` | 3 | How long an unpaid stall stays frozen before it's cleared |
+| `impound-expiry-days` | 30 | How long items wait in the impound before they're sold |
+| `max-helpers` | 2 | How many friends a renter can trust to build |
+| `day-length-minutes` | 1440 | How long a rent "day" is. **For testing**, set it to e.g. 2 to watch auto-renewal, grace and eviction happen in minutes. Set it back to 1440 for real use. |
+
+**How it works for players:**
+- `/market` takes them there. Standing in a stall, `/market info` shows its rent, and `/market rent [days]` rents it (one stall per player per market).
+- Rent renews itself each day from their balance (`/market autorenew off` to stop). `/market extend <days>` pays ahead.
+- If rent can't be paid, the stall is **frozen**: nobody can build, and its shops are closed. Paying (`/market extend`) unfreezes it.
+- After the grace period, everything in the stall (chest contents, the blocks themselves, item frames, armor stands) goes to the renter's **impound**, and the stall is free again. `/market claim` opens the impound as a chest menu. Unclaimed items are sold at `prices.yml` value after `impound-expiry-days` (unpriced or customized items are worth nothing).
+- `/market trust <player>` lets a friend build; `/market unrent` gives the stall up (contents go to the impound, no refund).
+
+**Shops:** with QuickShop-Hikari installed, players make shops on chests in their own stall. QuickShop only allows a shop where the player could break blocks, and WorldGuard only lets them do that in their own stall. Shops in a frozen stall don't sell, and they're deleted when the stall is cleared.
+
+**Admin tools:** `/thebox market stall evict main s1` clears a stall into its renter's impound right away. `stall setrent` changes the rent, `stall delete` removes a free stall.
+
+## 11. Prestige rewards
 
 > Needs PlayerParticles.
 
@@ -312,7 +361,7 @@ lp group p3 permission set playerparticles.style.wings true
 ```
 Players pick their particles with `/pp`.
 
-## 11. Food
+## 12. Food
 
 Mining all day uses up hunger fast. Two EssentialsX features cover it, with no TheBox setup needed:
 
@@ -337,7 +386,7 @@ lp group m permission set essentials.feed true
 ```
 Its cooldown is `heal-cooldown` in `plugins/Essentials/config.yml` (default 60 seconds, shared with `/heal`).
 
-## 12. Check that it works
+## 13. Check that it works
 
 As a **non-op** player:
 1. Join, then in the console run `lp user <name> info`. The player should be in group `a`.
@@ -347,6 +396,7 @@ As a **non-op** player:
 5. `/rankup` buys the next rank (`/rankup max` buys as many as you can afford). The whole server sees an announcement.
 6. Walking into a locked mine is blocked with "You haven't unlocked … yet."
 7. At the top rank, `/prestige` explains what prestiging does, and `/prestige confirm` does it: the player goes back to `a`, joins `p1`, and the server sees an announcement.
+8. `/market`, stand in a free stall, `/market rent`. Building works in your stall and nowhere else in the market. With `day-length-minutes: 2` and auto-renew off, the stall freezes after 2 minutes; after the grace period its contents show up in `/market claim`.
 
 ## Network (later)
 

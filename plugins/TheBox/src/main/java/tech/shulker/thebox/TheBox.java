@@ -7,6 +7,12 @@ import java.util.List;
 import net.luckperms.api.LuckPerms;
 import net.milkbowl.vault.economy.Economy;
 import org.bukkit.plugin.java.JavaPlugin;
+import tech.shulker.thebox.market.Impound;
+import tech.shulker.thebox.market.MarketAdminCommand;
+import tech.shulker.thebox.market.MarketCommand;
+import tech.shulker.thebox.market.MarketManager;
+import tech.shulker.thebox.market.QuickShopHook;
+import tech.shulker.thebox.menu.MenuListener;
 import tech.shulker.thebox.mines.MineCommand;
 import tech.shulker.thebox.mines.MineManager;
 import tech.shulker.thebox.mines.MinesCommand;
@@ -59,6 +65,20 @@ public class TheBox extends JavaPlugin {
                 + RankLadder.PRESTIGE_TRACK + ").");
         }
 
+        // Market: stalls, rent and the impound. Chest menus (marketplace picker, impound) need MenuListener.
+        Impound impound = new Impound(this);
+        impound.load();
+        MarketManager marketManager = new MarketManager(this, impound, priceManager);
+        marketManager.load();
+        marketManager.startTimer();
+        getServer().getPluginManager().registerEvents(marketManager, this); // reminders when players join
+        getServer().getPluginManager().registerEvents(new MenuListener(this), this);
+        // QuickShop-Hikari is optional (softdepend), and when it's installed it has enabled before TheBox.
+        if (getServer().getPluginManager().isPluginEnabled("QuickShop-Hikari")) {
+            QuickShopHook.register(this, marketManager);
+            getLogger().info("QuickShop-Hikari found: stall shops are removed with their stall and closed while rent is overdue.");
+        }
+
         // Economy check. runTask runs on the first server tick, after every plugin has enabled,
         // so the economy plugin has had its chance to register with Vault by then.
         getServer().getScheduler().runTask(this, () -> {
@@ -78,6 +98,7 @@ public class TheBox extends JavaPlugin {
             event.registrar().register(sellCommand.createNode(), "Sell items for money");
             event.registrar().register(new RankupCommand(rankManager, ladder, getLogger()).createNode(), "Buy the next rank");
             event.registrar().register(new PrestigeCommand(rankManager, ladder, getLogger()).createNode(), "Start the ranks again with a prestige level");
+            event.registrar().register(new MarketCommand(marketManager, getLogger()).createNode(), "Go to the market and rent a stall");
 
             // Admin commands all live under /thebox. Brigadier trees compose: each feature's built
             // node is attached as a child, and the one .requires here guards (and hides) them all.
@@ -85,12 +106,13 @@ public class TheBox extends JavaPlugin {
                 .requires(source -> source.getSender().hasPermission("thebox.admin"))
                 .executes(ctx -> {
                     ctx.getSource().getSender().sendRichMessage(
-                        "<gold>TheBox admin:</gold> <yellow>/thebox mine</yellow>, <yellow>/thebox price</yellow>, <yellow>/thebox rank</yellow>");
+                        "<gold>TheBox admin:</gold> <yellow>/thebox mine</yellow>, <yellow>/thebox price</yellow>, <yellow>/thebox rank</yellow>, <yellow>/thebox market</yellow>");
                     return Command.SINGLE_SUCCESS;
                 })
                 .then(new MineCommand(mineManager).createNode())
                 .then(sellCommand.createPriceNode())
                 .then(new RankCommand(rankManager).createNode())
+                .then(new MarketAdminCommand(marketManager).createNode())
                 // "tb" is an alias: a copy of the whole tree under a second label. Paper skips an alias
                 // that another plugin already uses, but /thebox and /thebox:thebox always work.
                 .build(), "TheBox admin commands", List.of("tb"));

@@ -107,12 +107,12 @@ public class SellCommand {
         if (stack.isEmpty()) {
             throw EMPTY_HAND.create();
         }
-        ItemType type = typeOf(stack);
+        ItemType type = PriceManager.typeOf(stack);
         Double price = prices.getPrice(type);
         if (price == null) {
             throw NOT_SELLABLE.create(stack.effectiveName());
         }
-        if (!isPlain(stack, type)) {
+        if (!PriceManager.isPlain(stack, type)) {
             throw CUSTOM_ITEM.create(stack.effectiveName());
         }
 
@@ -147,12 +147,12 @@ public class SellCommand {
             if (stack == null || stack.isEmpty()) {
                 continue;
             }
-            ItemType type = typeOf(stack);
+            ItemType type = PriceManager.typeOf(stack);
             Double price = prices.getPrice(type);
             if (price == null) {
                 continue;
             }
-            if (!isPlain(stack, type)) {
+            if (!PriceManager.isPlain(stack, type)) {
                 skippedCustom++;
                 continue;
             }
@@ -192,12 +192,12 @@ public class SellCommand {
         if (stack.isEmpty()) {
             throw EMPTY_HAND.create();
         }
-        ItemType type = typeOf(stack);
+        ItemType type = PriceManager.typeOf(stack);
         Double price = prices.getPrice(type);
         if (price == null) {
             throw NOT_SELLABLE.create(stack.effectiveName());
         }
-        String customizedNote = isPlain(stack, type) ? "" : " <gray>(This one is customized, though, so it can't be sold.)";
+        String customizedNote = PriceManager.isPlain(stack, type) ? "" : " <gray>(This one is customized, though, so it can't be sold.)";
         player.sendRichMessage("<item> <green>sells for <each> each, <total> for this stack.</green>" + customizedNote,
                 Placeholder.component("item", stack.effectiveName()),
                 Placeholder.unparsed("each", VaultEconomy.format(player, price)),
@@ -306,24 +306,5 @@ public class SellCommand {
         if (!response.transactionSuccess()) {
             throw DEPOSIT_FAILED.create(response.errorMessage);
         }
-    }
-
-    /**
-     * The stack's item type. In Paper 26.3, ItemStack only exposes its type as the
-     * deprecated Material,
-     * so we convert straight to the registry-based ItemType here, in this one
-     * place.
-     */
-    @SuppressWarnings("deprecation")
-    private static ItemType typeOf(ItemStack stack) {
-        return stack.getType().asItemType();
-    }
-
-    /**
-     * True if the stack is a plain item: identical to a freshly created one apart
-     * from the amount.
-     */
-    private static boolean isPlain(ItemStack stack, ItemType type) {
-        return stack.isSimilar(type.createItemStack());
     }
 }
