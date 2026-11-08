@@ -22,6 +22,7 @@ import io.papermc.paper.command.brigadier.Commands;
 import io.papermc.paper.command.brigadier.argument.ArgumentTypes;
 import io.papermc.paper.registry.RegistryKey;
 import java.util.Map;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Location;
 import org.bukkit.block.BlockType;
 import org.bukkit.command.CommandSender;
@@ -79,6 +80,14 @@ public class MineCommand {
                 .then(mineArgument()
                     .then(Commands.argument("seconds", IntegerArgumentType.integer(0))
                         .executes(this::setResetTime))))
+            .then(Commands.literal("setname")
+                .then(mineArgument()
+                    .then(Commands.argument("name", StringArgumentType.greedyString())
+                        .executes(this::setName))))
+            .then(Commands.literal("setresetpercent")
+                .then(mineArgument()
+                    .then(Commands.argument("percent", IntegerArgumentType.integer(0, 100))
+                        .executes(this::setResetPercent))))
             .then(Commands.literal("settp")
                 .then(mineArgument().executes(this::setTeleport)))
             .then(Commands.literal("reload")
@@ -121,6 +130,8 @@ public class MineCommand {
             <yellow>/mine addblock \\<mine> \\<block> \\<weight></yellow> <gray>- add or change a block in the mix</gray>
             <yellow>/mine removeblock \\<mine> \\<block></yellow> <gray>- remove a block from the mix</gray>
             <yellow>/mine setresettime \\<mine> \\<seconds></yellow> <gray>- automatic reset interval (0 = off)</gray>
+            <yellow>/mine setname \\<mine> \\<name></yellow> <gray>- the name players see (MiniMessage, e.g. \\<gold>Gold Rush)</gray>
+            <yellow>/mine setresetpercent \\<mine> \\<percent></yellow> <gray>- reset once this % is mined (0 = off)</gray>
             <yellow>/mine settp \\<mine></yellow> <gray>- set the teleport point to where you stand</gray>
             <yellow>/mine delete \\<mine></yellow> <gray>- delete a mine (blocks stay)</gray>
             <yellow>/mine reload</yellow> <gray>- re-read mines.yml</gray>""");
@@ -181,7 +192,10 @@ public class MineCommand {
                 ? "every " + mine.getResetIntervalSeconds() + "s (next in " + mine.getSecondsUntilReset() + "s)"
                 : "manual only";
             sender.sendRichMessage("<yellow>" + mine.getId() + "</yellow> <gray>- " + mine.getWorld().getName()
-                + ", blocks: " + describeBlocks(mine) + ", reset: " + reset);
+                + ", blocks: " + describeBlocks(mine) + ", reset: " + reset
+                + (mine.getResetPercent() > 0
+                    ? ", or at " + mine.getResetPercent() + "% mined (now " + mine.getPercentMined() + "%)"
+                    : ""));
         }
         return Command.SINGLE_SUCCESS;
     }
@@ -226,6 +240,28 @@ public class MineCommand {
         String message = seconds == 0
             ? "<green>Mine <white>" + mine.getId() + "</white> will now only reset manually."
             : "<green>Mine <white>" + mine.getId() + "</white> will reset every " + seconds + " seconds.";
+        ctx.getSource().getSender().sendRichMessage(message);
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private int setName(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        Mine mine = getMine(ctx);
+        // Display names are MiniMessage on purpose: only admins can set them, and they get colors this way.
+        mine.setDisplayName(StringArgumentType.getString(ctx, "name"));
+        mines.save();
+        ctx.getSource().getSender().sendRichMessage("<green>Mine <white>" + mine.getId() + "</white> is now shown to players as: </green><name>",
+            Placeholder.parsed("name", mine.getDisplayName()));
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private int setResetPercent(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        Mine mine = getMine(ctx);
+        int percent = IntegerArgumentType.getInteger(ctx, "percent");
+        mine.setResetPercent(percent);
+        mines.save();
+        String message = percent == 0
+            ? "<green>Mine <white>" + mine.getId() + "</white> no longer resets based on how much is mined."
+            : "<green>Mine <white>" + mine.getId() + "</white> will reset once " + percent + "% has been mined.";
         ctx.getSource().getSender().sendRichMessage(message);
         return Command.SINGLE_SUCCESS;
     }

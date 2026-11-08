@@ -27,6 +27,15 @@ public class Mine {
     /** When the next automatic reset is due. Kept in memory only. */
     private long nextResetMillis = 0;
 
+    /** Name players see, in MiniMessage format (e.g. "<light_purple>Shulker Shell Shaft"), or null to show the id. */
+    private String displayName = null;
+
+    /** Reset once this percentage of the mine has been mined; 0 means off. */
+    private int resetPercent = 0;
+
+    /** Blocks broken inside the mine since its last reset. Kept in memory only. */
+    private long blocksMined = 0;
+
     public Mine(String id, World world, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
         this.id = id;
         this.world = world;
@@ -62,6 +71,14 @@ public class Mine {
     }
 
     /** Where players are sent: the custom point if set, otherwise standing on the center of the mine's top. */
+    /** True if the location is inside the mine or within {@code margin} blocks of it. */
+    public boolean isNear(Location location, int margin) {
+        return world.equals(location.getWorld())
+            && location.getBlockX() >= minX - margin && location.getBlockX() <= maxX + margin
+            && location.getBlockY() >= minY - margin && location.getBlockY() <= maxY + margin
+            && location.getBlockZ() >= minZ - margin && location.getBlockZ() <= maxZ + margin;
+    }
+
     public Location getTeleport() {
         if (customTeleport != null) {
             return customTeleport;
@@ -87,6 +104,30 @@ public class Mine {
 
     public void scheduleNextReset() {
         nextResetMillis = System.currentTimeMillis() + resetIntervalSeconds * 1000L;
+    }
+
+    /** The display name if one is set, otherwise the id. MiniMessage format. */
+    public String getDisplayName() { return displayName != null ? displayName : id; }
+    public boolean hasDisplayName() { return displayName != null; }
+    public void setDisplayName(String displayName) { this.displayName = displayName; }
+
+    public int getResetPercent() { return resetPercent; }
+    public void setResetPercent(int percent) { this.resetPercent = percent; }
+
+    public long getVolume() {
+        return (long) (maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1);
+    }
+
+    public void addBlockMined() { blocksMined++; }
+    public void clearBlocksMined() { blocksMined = 0; }
+
+    public int getPercentMined() {
+        return (int) Math.min(100, blocksMined * 100 / getVolume());
+    }
+
+    /** True once enough of the mine has been broken to trigger a percentage reset. */
+    public boolean isPercentResetDue() {
+        return resetPercent > 0 && blocksMined * 100 >= getVolume() * resetPercent;
     }
 
     public long getSecondsUntilReset() {

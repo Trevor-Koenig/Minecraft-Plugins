@@ -118,18 +118,48 @@ Admin access lives under `thebox.admin`, not under `thebox.mine.*`, so a mine na
 
 All of M1 passed in-game testing on 2026-11-07.
 
-**M1 follow-ups (deferred):**
-- Display names (`displayName` in section 2). Commands show ids for now.
-- Reset when X% has been mined (only timer and manual resets exist so far).
-- Stop players without `thebox.mine.<id>` from *walking* into a mine. Only `/mines` teleporting is gated now.
-- Announce resets more widely (currently only players inside the mine are told).
-- Watch reset performance on very large mines.
+**M1 follow-ups:**
+- [x] Display names: `/mine setname <mine> <name>` (MiniMessage, admin-only), shown in `/mines` and reset messages *(built 2026-11-07, untested)*
+- [x] Reset when X% has been mined: `/mine setresetpercent <mine> <percent>`, counting block breaks inside the mine *(built, untested)*
+- [x] Players without `thebox.mine.<id>` can't walk or teleport into a mine (`PlayerMoveEvent`) *(built, untested)*
+- [x] Announce resets to players in or within 32 blocks of the mine *(built, untested)*
+- [ ] Watch reset performance on very large mines.
+- Note: the % counter only counts player block breaks, not explosions, and it resets on server restart.
 
 ### M2: Selling
-`/sell`, prices per block (per mine or per rank?), autosell. Comes before ranks so players can earn the money to rank up. To be planned in detail.
+Comes before ranks so players can earn the money to rank up.
+
+Decisions (2026-11-07):
+- **Global prices:** one price per item type, everywhere. Per-mine prices or rank multipliers can come later.
+- **Any item can have a price,** not just mined blocks. That leaves room for crafting interplay later (craft something worth more than its parts).
+- **v1 commands:** `/sell hand` and `/sell all`. `/autosell` comes later.
+- **`/sell all` skips items with custom data** (renamed, enchanted, custom items), so nobody sells their gear by accident. Those items stay free for crafting interplay later.
+- **Economy: EssentialsX + VaultUnlocked.** It's a new server, so we chose for popularity and long-term support. EssentialsX's last release (2.22.0) lists only 26.1.2, but 26.3 support is merged and available in dev builds (2.22.1-dev). VaultUnlocked is the maintained Vault fork; it registers as `Vault`, so `depend: [Vault]` works.
+
+Steps:
+- [x] 1. Test server: add VaultUnlocked and an economy plugin via `downloadPlugins`
+- [x] 2. Hook into the economy through Vault's service lookup; `depend: [WorldEdit, Vault]`
+- [x] 3. `prices.yml` (item → price) plus `/sell price set|remove|list|reload` (admin only)
+- [x] 4. `/sell hand`
+- [x] 5. `/sell all`
+
+M2 is built and compiles, but hasn't been tested in-game yet. Implementation notes:
+- Uses the original Vault API (`VaultAPI:1.7`, not transitive), which EssentialsX registers with. VaultUnlocked's newer API only works if the economy plugin supports it.
+- The economy is looked up on each sell, not once at startup, because the economy plugin may enable after TheBox. A startup check runs on the first tick and logs which economy was found.
+- "Customized" means anything that isn't identical to a fresh item of its type (`isSimilar`). That includes renamed, enchanted *and damaged* items. `/sell hand` refuses them too, not just `/sell all`.
+- Selling pays first and removes items second, so a refused payment never costs the player their items.
+- Every `/sell hand` and `/sell all` reply, successes and errors, is also written to the server log through Paper's `ComponentLogger` (so translated item names render properly).
+- Unsellable and customized items are named in the error, using the custom name if renamed.
+- `/sell worth` (players): shows what the held item sells for *(built, untested)*.
 
 ### M3: Ranks and prestige
-Configurable ladder, `/rankup`, `/ranks`, unlocks via LuckPerms, prestige. To be planned in detail.
+Configurable ladder, `/rankup`, `/ranks`, unlocks via LuckPerms, prestige.
+
+**Proposal (drafted 2026-11-08, needs the owner's decisions before building):**
+- **Ladder = a LuckPerms track.** Each rank is a LuckPerms group, so each rank's unlocks (`thebox.mine.<id>`, `thebox.market`, …) are managed in LuckPerms, with its normal tools. LuckPerms also stores each player's rank. TheBox adds what LuckPerms doesn't have: costs, `/rankup` (charge through Vault, then promote along the track), `/rankup max` and `/ranks`. LuckPerms has a 26.3 Paper build on Modrinth (v5.5.71). The alternative, TheBox storing ranks and granting permissions itself, would mean rebuilding a permissions plugin.
+- **`ranks.yml`:** the ordered ladder, each rank with `id`, `display-name` (MiniMessage), `cost` and `group` (the LuckPerms group). Hand-editable plus `/rank reload`, like mines.
+- **Prestige:** at the last rank, `/prestige` moves the player back to the first rank and adds 1 to a prestige counter, stored as LuckPerms metadata (`prestige` meta key), so all player progress lives in one place. A common pattern is making rank costs scale with prestige, e.g. `cost × (1 + 0.5 × prestige)`.
+- **Decisions needed:** (1) Is LuckPerms as the source of truth OK? (2) Cost curve: hand-set per rank, or a formula (e.g. base × 1.5^n)? (3) What does prestige grant besides the cost increase: a chat tag, a sell multiplier, cosmetics (keep the monetization guidelines in mind)? (4) Rank theme and names (open question below).
 
 ### ★ First playable release
 After M1–M3 the core loop (mine → sell → rank up) works. Deploy TheBox to the real server and gather player feedback before building further.
@@ -145,7 +175,9 @@ Personal cells with buyable upgrades, including the ability to sell from the cel
 - The naming theme for mines and ranks (Shulker / End themed?).
 - What prestige grants.
 - Player progress storage (M3): ranks as a LuckPerms track? And where prestige levels live (LuckPerms metadata, the player's persistent data, or TheBox's own file or database)?
-- Sell prices: global, per mine, or with per-rank multipliers?
+- ~~Sell prices~~: decided, global for now (see M2).
+- ~~Economy plugin~~: decided, **EssentialsX + VaultUnlocked** (see M2).
+- ~~Items with custom data~~: decided, `/sell all` skips them (see M2).
 - **Monetization:** read Mojang's Usage Guidelines (https://www.minecraft.net/en-us/usage-guidelines) before planning any store. Any store should grant permissions, which TheBox honors, rather than TheBox selling things directly.
 - ~~Reset implementation~~: decided on a WorldEdit `EditSession` with a `RandomPattern`. Revisit only if huge mines cause lag.
 - Market: which stall and shop plugins to use (check Paper 26.3 support first), rent pricing and duration, and whether there's one marketplace or several (several would make `/market` take a name).

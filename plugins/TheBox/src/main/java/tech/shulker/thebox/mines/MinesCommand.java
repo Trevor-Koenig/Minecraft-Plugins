@@ -11,6 +11,7 @@ import com.mojang.brigadier.tree.LiteralCommandNode;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
 import java.util.List;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
@@ -59,7 +60,8 @@ public class MinesCommand {
         }
         sender.sendRichMessage("<gold>Your mines:</gold> <gray>(teleport with /mines \\<mine>)");
         for (Mine mine : unlocked) {
-            sender.sendRichMessage("<yellow>- " + mine.getId());
+            sender.sendRichMessage("<yellow>- </yellow><name> <gray>(/mines " + mine.getId() + ")",
+                Placeholder.parsed("name", mine.getDisplayName()));
         }
         return Command.SINGLE_SUCCESS;
     }
@@ -71,7 +73,8 @@ public class MinesCommand {
             throw NOT_AVAILABLE.create();
         }
         player.teleport(mine.getTeleport());
-        player.sendRichMessage("<green>Teleported to mine <white>" + mine.getId() + "</white>.");
+        player.sendRichMessage("<green>Teleported to </green><name><green>.",
+            Placeholder.parsed("name", mine.getDisplayName()));
         return Command.SINGLE_SUCCESS;
     }
 }

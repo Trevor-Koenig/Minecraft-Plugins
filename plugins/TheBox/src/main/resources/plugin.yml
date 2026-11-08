@@ -5,7 +5,7 @@ author: Trevor Koenig
 description: A Shulker Tech Prison Paper plugin!
 api-version: '26.3'
 
-depend: [WorldEdit]
+depend: [WorldEdit, Vault]
 
 permissions:
   thebox.admin:
