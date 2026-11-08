@@ -1,6 +1,7 @@
 plugins {
     java
     
+    id("xyz.jpenilla.run-paper") version "3.1.0"
 }
 
 group = "tech.shulker.thebox"
@@ -28,5 +29,12 @@ tasks.processResources {
     filteringCharset = "UTF-8"
     filesMatching("plugin.yml") {
         expand(props)
+    }
+}
+
+tasks.runServer {
+    minecraftVersion("26.3")
+    downloadPlugins {
+        modrinth("worldedit", "YFnqiUlL")
     }
 }

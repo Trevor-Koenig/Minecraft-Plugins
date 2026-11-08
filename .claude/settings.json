@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "ask": [
+      "Read(/plugins/*/run/**)",
+      "Read(/mods/*/run/**)"
+    ]
+  }
+}
