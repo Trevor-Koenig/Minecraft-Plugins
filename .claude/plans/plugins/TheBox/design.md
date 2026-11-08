@@ -103,18 +103,27 @@ Admin access lives under `thebox.admin`, not under `thebox.mine.*`, so a mine na
 
 ### M1: Mines
 - [x] 1. `/mine` command (hello)
-- [ ] 2. `/mine create <id>` prints the WorldEdit selection
+- [x] 2. `/mine create <id>` creates a mine from the WorldEdit selection
   - [x] 2.1 WorldEdit `compileOnly` dependency
-  - [x] 2.2 `create <name>` branch in the command tree
-  - [ ] 2.3 Require a player sender
-  - [ ] 2.4 Read the selection through the WorldEdit API
-  - [ ] 2.5 Restrict admin subcommands to `thebox.admin` (Brigadier `.requires(...)`)
-- [ ] 3. Mines kept in memory; `/mine reset <id>` fills the region with stone
-- [ ] 4. Weighted block mix
-- [ ] 5. Save and load `mines.yml`; `/mine reload`
-- [ ] 6. Automatic resets (scheduler)
-- [ ] 7. Player safety: move players out of the region before a reset
-- [ ] 8. `thebox.mine.<id>` permission, plus `/mines` teleport
+  - [x] 2.2 `create <id>` branch in the command tree
+  - [x] 2.3 Require a player sender (`getPlayerOrThrow()`)
+  - [x] 2.4 Read the selection through the WorldEdit API (uses the bounding box of any selection shape)
+  - [x] 2.5 Restrict `/mine` to `thebox.admin` (Brigadier `.requires(...)`)
+- [x] 3. Mines kept in memory; `/mine reset <mine>` refills the region (WorldEdit `EditSession`)
+- [x] 4. Weighted block mix: `/mine addblock`, `/mine removeblock`
+- [x] 5. Save and load `mines.yml`; `/mine reload`
+- [x] 6. Automatic resets: `/mine setresettime`, one timer checking every second
+- [x] 7. Player safety: players inside are teleported to the mine's teleport point before a reset
+- [x] 8. `thebox.mine.<id>` permission, `/mines` list and teleport, `/mine settp`
+
+All of M1 passed in-game testing on 2026-11-07.
+
+**M1 follow-ups (deferred):**
+- Display names (`displayName` in section 2). Commands show ids for now.
+- Reset when X% has been mined (only timer and manual resets exist so far).
+- Stop players without `thebox.mine.<id>` from *walking* into a mine. Only `/mines` teleporting is gated now.
+- Announce resets more widely (currently only players inside the mine are told).
+- Watch reset performance on very large mines.
 
 ### M2: Selling
 `/sell`, prices per block (per mine or per rank?), autosell. Comes before ranks so players can earn the money to rank up. To be planned in detail.
@@ -138,6 +147,6 @@ Personal cells with buyable upgrades, including the ability to sell from the cel
 - Player progress storage (M3): ranks as a LuckPerms track? And where prestige levels live (LuckPerms metadata, the player's persistent data, or TheBox's own file or database)?
 - Sell prices: global, per mine, or with per-rank multipliers?
 - **Monetization:** read Mojang's Usage Guidelines (https://www.minecraft.net/en-us/usage-guidelines) before planning any store. Any store should grant permissions, which TheBox honors, rather than TheBox selling things directly.
-- Reset implementation: WorldEdit `EditSession` vs. spreading block changes across ticks.
+- ~~Reset implementation~~: decided on a WorldEdit `EditSession` with a `RandomPattern`. Revisit only if huge mines cause lag.
 - Market: which stall and shop plugins to use (check Paper 26.3 support first), rent pricing and duration, and whether there's one marketplace or several (several would make `/market` take a name).
 - Cells: how players get one (a free starter cell, or bought?), which upgrades exist besides selling, whether cell shops compete with the market, and whether cells come from an integrated plugin or from TheBox.

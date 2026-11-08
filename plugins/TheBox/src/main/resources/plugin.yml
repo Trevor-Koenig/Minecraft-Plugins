@@ -7,3 +7,10 @@ api-version: '26.3'
 
 depend: [WorldEdit]
 
+permissions:
+  thebox.admin:
+    description: Use all /mine admin commands
+    default: op
+  # Per-mine access (thebox.mine.<id>) isn't listed here because mine ids are created in-game.
+  # Undeclared permissions default to op-only; ranks will grant them to players later.
+

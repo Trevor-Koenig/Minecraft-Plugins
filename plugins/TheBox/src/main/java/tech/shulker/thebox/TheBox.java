@@ -3,6 +3,8 @@ package tech.shulker.thebox;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import org.bukkit.plugin.java.JavaPlugin;
 import tech.shulker.thebox.mines.MineCommand;
+import tech.shulker.thebox.mines.MineManager;
+import tech.shulker.thebox.mines.MinesCommand;
 import tech.shulker.thebox.managers.PluginManager;
 import tech.shulker.thebox.listeners.PlayerListener;
 
@@ -17,10 +19,16 @@ public class TheBox extends JavaPlugin {
         // Register listeners
         getServer().getPluginManager().registerEvents(new PlayerListener(), this);
 
+        // Mines: load mines.yml and start the automatic-reset timer
+        MineManager mineManager = new MineManager(this);
+        mineManager.load();
+        mineManager.startResetTimer();
+
         // Register commands
-        getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event ->
-            event.registrar().register(MineCommand.createNode(), "Manage prison mines")
-        );
+        getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event -> {
+            event.registrar().register(new MineCommand(mineManager).createNode(), "Manage prison mines");
+            event.registrar().register(new MinesCommand(mineManager).createNode(), "Teleport to a mine you've unlocked");
+        });
 
         getLogger().info(getPluginMeta().getName() + " has been enabled!");
     }
