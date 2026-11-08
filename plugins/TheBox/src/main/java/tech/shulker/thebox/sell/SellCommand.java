@@ -32,7 +32,7 @@ import org.bukkit.inventory.ItemType;
 import org.bukkit.inventory.PlayerInventory;
 
 /**
- * /sell hand, /sell all, and the admin-only /sell price set|remove|list|reload.
+ * The player command /sell hand|all|worth, plus the admin-only /thebox price set|remove|list|reload.
  */
 public class SellCommand {
 
@@ -68,19 +68,21 @@ public class SellCommand {
                 .then(Commands.literal("hand").executes(ctx -> logErrors(ctx, "hand", this::sellHand)))
                 .then(Commands.literal("all").executes(ctx -> logErrors(ctx, "all", this::sellAll)))
                 .then(Commands.literal("worth").executes(this::worth))
-                .then(Commands.literal("price")
-                        // .requires on a child node hides just this branch: players see /sell hand and
-                        // /sell all only.
-                        .requires(source -> source.getSender().hasPermission("thebox.admin"))
-                        .then(Commands.literal("set")
-                                .then(Commands.argument("item", ArgumentTypes.resource(RegistryKey.ITEM))
-                                        .then(Commands.argument("price", DoubleArgumentType.doubleArg(0.01))
-                                                .executes(this::setPrice))))
-                        .then(Commands.literal("remove")
-                                .then(Commands.argument("item", ArgumentTypes.resource(RegistryKey.ITEM))
-                                        .executes(this::removePrice)))
-                        .then(Commands.literal("list").executes(this::listPrices))
-                        .then(Commands.literal("reload").executes(this::reloadPrices)))
+                .build();
+    }
+
+    /** The admin price commands. Mounted under /thebox, which checks thebox.admin. */
+    public LiteralCommandNode<CommandSourceStack> createPriceNode() {
+        return Commands.literal("price")
+                .then(Commands.literal("set")
+                        .then(Commands.argument("item", ArgumentTypes.resource(RegistryKey.ITEM))
+                                .then(Commands.argument("price", DoubleArgumentType.doubleArg(0.01))
+                                        .executes(this::setPrice))))
+                .then(Commands.literal("remove")
+                        .then(Commands.argument("item", ArgumentTypes.resource(RegistryKey.ITEM))
+                                .executes(this::removePrice)))
+                .then(Commands.literal("list").executes(this::listPrices))
+                .then(Commands.literal("reload").executes(this::reloadPrices))
                 .build();
     }
 
@@ -198,8 +200,8 @@ public class SellCommand {
         String customizedNote = isPlain(stack, type) ? "" : " <gray>(This one is customized, though, so it can't be sold.)";
         player.sendRichMessage("<item> <green>sells for <each> each, <total> for this stack.</green>" + customizedNote,
                 Placeholder.component("item", stack.effectiveName()),
-                Placeholder.unparsed("each", formatMoney(player, price)),
-                Placeholder.unparsed("total", formatMoney(player, price * stack.getAmount())));
+                Placeholder.unparsed("each", VaultEconomy.format(player, price)),
+                Placeholder.unparsed("total", VaultEconomy.format(player, price * stack.getAmount())));
         return Command.SINGLE_SUCCESS;
     }
 
@@ -209,7 +211,7 @@ public class SellCommand {
         prices.setPrice(type, price);
         ctx.getSource().getSender().sendRichMessage("<green>Price of <item> set to <price> each.",
                 Placeholder.unparsed("item", type.key().value()),
-                Placeholder.unparsed("price", formatMoney(ctx.getSource().getSender(), price)));
+                Placeholder.unparsed("price", VaultEconomy.format(ctx.getSource().getSender(), price)));
         return Command.SINGLE_SUCCESS;
     }
 
@@ -227,14 +229,14 @@ public class SellCommand {
         CommandSender sender = ctx.getSource().getSender();
         List<Map.Entry<ItemType, Double>> all = prices.getAllSorted();
         if (all.isEmpty()) {
-            sender.sendRichMessage("<gray>No prices set yet. Use /sell price set \\<item> \\<price>.");
+            sender.sendRichMessage("<gray>No prices set yet. Use /thebox price set \\<item> \\<price>.");
             return Command.SINGLE_SUCCESS;
         }
         sender.sendRichMessage("<gold>Sell prices:");
         for (Map.Entry<ItemType, Double> entry : all) {
             sender.sendRichMessage("<yellow><item></yellow> <gray>- <price>",
                     Placeholder.unparsed("item", entry.getKey().key().value()),
-                    Placeholder.unparsed("price", formatMoney(sender, entry.getValue())));
+                    Placeholder.unparsed("price", VaultEconomy.format(sender, entry.getValue())));
         }
         return Command.SINGLE_SUCCESS;
     }
@@ -304,14 +306,6 @@ public class SellCommand {
         if (!response.transactionSuccess()) {
             throw DEPOSIT_FAILED.create(response.errorMessage);
         }
-    }
-
-    /**
-     * Uses the economy's currency format if there is one, plain numbers otherwise.
-     */
-    private static String formatMoney(CommandSender sender, double amount) {
-        Economy economy = VaultEconomy.find(sender.getServer());
-        return economy != null ? economy.format(amount) : String.format("%.2f", amount);
     }
 
     /**

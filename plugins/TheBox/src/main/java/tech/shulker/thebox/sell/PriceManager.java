@@ -74,9 +74,9 @@ public class PriceManager {
     public void save() {
         YamlConfiguration yaml = new YamlConfiguration();
         yaml.options().setHeader(List.of(
-            "TheBox sell prices: item id -> price per item. Edited by /sell price commands.",
-            "You can also edit this file by hand: run /sell price reload afterwards,",
-            "otherwise the next /sell price change will overwrite your edits."));
+            "TheBox sell prices: item id -> price per item. Edited by /thebox price commands.",
+            "You can also edit this file by hand: run /thebox price reload afterwards,",
+            "otherwise the next /thebox price change will overwrite your edits."));
         for (Map.Entry<ItemType, Double> entry : getAllSorted()) {
             yaml.set("prices." + entry.getKey().key().asString(), entry.getValue());
         }

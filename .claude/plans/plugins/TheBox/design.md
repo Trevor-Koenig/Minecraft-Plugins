@@ -27,9 +27,9 @@ A region that refills with a weighted mix of blocks.
 Only admins create and edit mines. Players just teleport to them.
 
 ### Rank ladder
-- A configurable, ordered list of ranks. Not hard-coded A–Z.
-- Each rank has an `id`, a `displayName`, a `cost`, and **unlocks**.
-- Prestige: after the last rank, the player can prestige, which resets their rank and gives a prestige level. What prestige grants is still open (see section 7).
+- Ranks **A–Z**, in order. Each rank's id is a letter, but like mines it can have a `displayName` (MiniMessage), e.g. A = "<gray>Shulker Larva".
+- Each rank has a `cost` (set by hand) and **unlocks** (permissions, through LuckPerms).
+- Prestige: after Z, the player can prestige. That resets them to A and adds 1 to their prestige level, which earns a chat tag and cosmetic effects (see M3).
 
 ### Unlocks = permissions
 A rank grants permissions (or a LuckPerms group), and every feature checks those permissions:
@@ -59,7 +59,8 @@ A player's own personal space, a classic prison feature.
 |---|---|---|
 | WorldEdit | Region selection for mines; possibly fast fills for resets | `depend` (added) |
 | Vault + an economy plugin (e.g. EssentialsX) | Balances: sell income, rank-up costs | `depend` (from M2: Selling) |
-| LuckPerms | Permissions and groups granted by ranks; possibly the rank ladder itself (tracks) | `depend` (from M3: Ranks) |
+| LuckPerms | The rank ladder (a track), each player's rank and prestige, and the permissions ranks grant | `depend` (from M3: Ranks) |
+| PlayerParticles | Cosmetic particle effects (wings, halo, …) unlocked by prestige, one permission per style | Runs alongside TheBox; no code dependency. Latest build lists up to 26.2, so check 26.3 support first |
 | WorldGuard + a stall plugin (candidates: AreaShop, AdvancedRegionMarket) | Rentable market stalls | Runs alongside TheBox; probably no code dependency |
 | A chest-shop plugin (candidates: QuickShop-Hikari, ChestShop) | Player shops inside stalls | Runs alongside TheBox; probably no code dependency |
 
@@ -73,13 +74,14 @@ Compare against existing prison servers before finalizing.
 - `/market`: teleport to the player market (permission-gated)
 - Balance, pay and baltop come from the economy plugin, not TheBox.
 
-**Admins**
-- `/mine create <id>`, `delete <id>`, `list`
-- `/mine setblocks` / `addblock <id> <block> <weight>`
-- `/mine settp <id>`, `setresettime <id> <time>`, `reset <id>`
-- `/mine reload`
-- `/rank …` commands for managing the ladder (to be designed)
-- All admin commands require `thebox.admin`. Brigadier's `.requires(...)` also hides them from players without it.
+**Admins**: all under one root, `/thebox` (decided 2026-11-08). Player commands stay short and top-level, like on other prison servers. Grouping admin commands gives one autocomplete entry point, avoids the `/mine` vs `/mines` mix-up, and keeps `/sell` player-only.
+- `/thebox mine create|delete|list|reset|addblock|removeblock|setresettime|setresetpercent|setname|settp|reload`
+- `/thebox price set|remove|list|reload`
+- `/thebox rank list|setname|setcost|reload` (edits `ranks.yml` in-game)
+- `/thebox` requires `thebox.admin`. Brigadier's `.requires(...)` on the root guards, and hides, every admin command at once. Each feature's command class builds its own subtree, which is attached under the root with `.then(node)`.
+- Every command is also reachable as `/thebox:<label>` (Paper adds the plugin-name prefix automatically).
+- `/tb` is an alias for `/thebox`. Paper skips an alias another plugin already uses; `/thebox` always works.
+- Possible later: a `/thebox reload` that reloads everything.
 
 **Permission nodes**
 Declare them in `plugin.yml` with defaults.
@@ -97,7 +99,7 @@ Admin access lives under `thebox.admin`, not under `thebox.mine.*`, so a mine na
 - Editable in-game. Admin commands change data and save to YAML (`mines.yml`, later `ranks.yml`).
 - Hand-editing is supported: edit the file, then run `/mine reload`.
 - Known caveat: if an in-game save happens before a reload, it overwrites unsaved hand edits. Document this for admins.
-- **Player progress** (each player's rank and prestige level) is separate from config. Where it's stored is an open question (see section 7). The leading idea is that the rank ladder *is* a [LuckPerms track](https://luckperms.net/wiki/Tracks), so LuckPerms stores each player's rank and applies its permissions.
+- **Player progress** (each player's rank and prestige level) is separate from config, and lives in LuckPerms. The rank ladder *is* a [LuckPerms track](https://luckperms.net/wiki/Tracks), so LuckPerms stores each player's rank and applies its permissions (see M3).
 
 ## 6. Milestones
 
@@ -155,11 +157,34 @@ M2 is built and compiles, but hasn't been tested in-game yet. Implementation not
 ### M3: Ranks and prestige
 Configurable ladder, `/rankup`, `/ranks`, unlocks via LuckPerms, prestige.
 
-**Proposal (drafted 2026-11-08, needs the owner's decisions before building):**
-- **Ladder = a LuckPerms track.** Each rank is a LuckPerms group, so each rank's unlocks (`thebox.mine.<id>`, `thebox.market`, …) are managed in LuckPerms, with its normal tools. LuckPerms also stores each player's rank. TheBox adds what LuckPerms doesn't have: costs, `/rankup` (charge through Vault, then promote along the track), `/rankup max` and `/ranks`. LuckPerms has a 26.3 Paper build on Modrinth (v5.5.71). The alternative, TheBox storing ranks and granting permissions itself, would mean rebuilding a permissions plugin.
-- **`ranks.yml`:** the ordered ladder, each rank with `id`, `display-name` (MiniMessage), `cost` and `group` (the LuckPerms group). Hand-editable plus `/rank reload`, like mines.
-- **Prestige:** at the last rank, `/prestige` moves the player back to the first rank and adds 1 to a prestige counter, stored as LuckPerms metadata (`prestige` meta key), so all player progress lives in one place. A common pattern is making rank costs scale with prestige, e.g. `cost × (1 + 0.5 × prestige)`.
-- **Decisions needed:** (1) Is LuckPerms as the source of truth OK? (2) Cost curve: hand-set per rank, or a formula (e.g. base × 1.5^n)? (3) What does prestige grant besides the cost increase: a chat tag, a sell multiplier, cosmetics (keep the monetization guidelines in mind)? (4) Rank theme and names (open question below).
+Decisions (2026-11-08):
+- **LuckPerms is the source of truth.** The ladder is a LuckPerms track (`ranks`), and each rank is a LuckPerms group named after its letter (`a` … `z`). Each group inherits the one before it, so rank C keeps rank A's and B's unlocks. Unlocks are managed with LuckPerms' own commands, e.g. `/lp group c permission set thebox.mine.iron_depths true`. LuckPerms also stores each player's rank and prestige: their group on each track.
+- **Prestige is a second LuckPerms track** (`prestige`, groups `p1`, `p2`, …, each inheriting the one before). The prestige number is the group's position on the track. Prestige rewards (particles, tags) are set up exactly like rank unlocks: `/lp group p3 permission set playerparticles.style.wings true`. The highest prestige is however many groups exist, and more can be added any time. Prestige groups could get display names later, like ranks.
+- **Costs are set by hand** in `ranks.yml`, which can also be edited in-game with `/rank` admin commands (`thebox.admin`), like `/mine`.
+- **Ranks are A–Z** and nameable like mines: `/rank setname c <gold>Endermite`.
+- **Prestige grants a chat tag** (e.g. `[P3]`) **and cosmetic effects** (particle wings and the like). Cosmetics come from PlayerParticles: each prestige group grants `playerparticles.effect.<effect>` and `playerparticles.style.<style>` permissions (a particle needs both), which keeps "unlocks = permissions".
+- *(Proposed)* Rank costs scale with prestige by one config value: `cost × (1 + prestige-multiplier × prestige)`.
+
+`ranks.yml` sketch:
+```yaml
+prestige-multiplier: 0.5
+ranks:
+  a: { display-name: "<gray>A", cost: 0 }
+  b: { display-name: "<gray>B", cost: 1000 }
+  # … through z
+```
+
+Steps:
+- [ ] 1. Test server: add LuckPerms via `downloadPlugins`. By hand, create groups `a`, `b`, `c` on a `ranks` track, and `p1`, `p2` on a `prestige` track (just a few groups while developing). This is a chance to learn LuckPerms itself.
+- [ ] 2. LuckPerms API `compileOnly` dependency (`net.luckperms:api:5.5`), `depend: [WorldEdit, Vault, LuckPerms]`, look up the API through Bukkit's ServicesManager
+- [x] 3. `ranks.yml` (display names, costs) plus `/thebox rank setname|setcost|list|reload` *(built 2026-11-08, untested; doesn't touch LuckPerms yet)*. The first start writes a–z with placeholder costs (b = 1000, c = 2000, …).
+- [ ] 4. `/ranks`: the ladder, with the player's current rank and the next cost
+- [ ] 5. `/rankup`: charge through Vault, then promote along the track
+- [ ] 6. `/rankup max`
+- [ ] 7. `/prestige`: at Z, promote on the `prestige` track and move back to `a` on the `ranks` track
+- [ ] 8. Chat tags: `[P3] [C] Name: message` in chat
+- [ ] 9. Prestige cosmetics: install PlayerParticles (if it supports 26.3), and decide which styles each prestige level unlocks
+- Later: a `/rank setup` command that creates all 26 groups and the track, if creating them by hand gets tedious.
 
 ### ★ First playable release
 After M1–M3 the core loop (mine → sell → rank up) works. Deploy TheBox to the real server and gather player feedback before building further.
@@ -171,10 +196,12 @@ Comes after the first playable release, since shops need the economy. Set up the
 Personal cells with buyable upgrades, including the ability to sell from the cell. To be planned in detail.
 
 ## 7. Open questions
-- Rank-up costs and the shape of the cost curve.
-- The naming theme for mines and ranks (Shulker / End themed?).
-- What prestige grants.
-- Player progress storage (M3): ranks as a LuckPerms track? And where prestige levels live (LuckPerms metadata, the player's persistent data, or TheBox's own file or database)?
+- ~~Rank-up costs~~: decided, set by hand per rank (see M3).
+- ~~Rank names~~: decided, A–Z, each nameable (see M3). Mine names are still open.
+- ~~What prestige grants~~: decided, a chat tag and cosmetics (see M3).
+- ~~Player progress storage~~: decided, LuckPerms (see M3).
+- Prestige: does it also reset the player's balance? (Many prison servers do.)
+- Chat tags (M3 step 8): does TheBox format chat itself with [Paper's chat API](https://docs.papermc.io/paper/dev/chat-events/), or provide placeholders for a chat plugin? Owning chat is simplest to start; placeholders (PlaceholderAPI) are the standard choice once there's also a scoreboard or tab list.
 - ~~Sell prices~~: decided, global for now (see M2).
 - ~~Economy plugin~~: decided, **EssentialsX + VaultUnlocked** (see M2).
 - ~~Items with custom data~~: decided, `/sell all` skips them (see M2).

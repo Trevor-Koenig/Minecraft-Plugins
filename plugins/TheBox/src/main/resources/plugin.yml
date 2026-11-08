@@ -9,7 +9,7 @@ depend: [WorldEdit, Vault]
 
 permissions:
   thebox.admin:
-    description: Use all /mine admin commands
+    description: Use all /thebox admin commands
     default: op
   # Per-mine access (thebox.mine.<id>) isn't listed here because mine ids are created in-game.
   # Undeclared permissions default to op-only; ranks will grant them to players later.

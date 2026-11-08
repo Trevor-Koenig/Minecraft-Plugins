@@ -40,6 +40,8 @@ tasks.runServer {
     downloadPlugins {
         modrinth("worldedit", "YFnqiUlL")       // WorldEdit 7.4.6 (Bukkit/Paper build)
         modrinth("vaultunlocked", "qZgRzoYs")   // VaultUnlocked 2.20.3, registers as "Vault"
+        modrinth("luckperms", "b0mk8uS6")       // LuckPerms 5.5.71-bukkit (Bukkit/Paper build)
+        modrinth("playerparticles", "pNqks5Iv") // PlayerParticles 8.13
         // EssentialsX dev build #1833 (2.22.1-dev): its last release predates 26.3 support
         url("https://ci.ender.zone/job/EssentialsX/1833/artifact/jars/EssentialsX-2.22.1-dev%2B28-f8724e2.jar")
     }

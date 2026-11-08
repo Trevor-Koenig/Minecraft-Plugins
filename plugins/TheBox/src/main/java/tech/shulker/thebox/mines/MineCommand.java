@@ -28,7 +28,7 @@ import org.bukkit.block.BlockType;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
-/** The admin command: /mine create|delete|list|reset|addblock|removeblock|setresettime|settp|reload. */
+/** The admin command: /thebox mine create|delete|list|reset|addblock|removeblock|setresettime|settp|reload. */
 public class MineCommand {
 
     // Brigadier's way of failing a command: throw one of these and the player sees the message in red.
@@ -54,9 +54,8 @@ public class MineCommand {
     }
 
     public LiteralCommandNode<CommandSourceStack> createNode() {
+        // Mounted under /thebox, which checks thebox.admin for all admin commands. Players use /mines instead.
         return Commands.literal("mine")
-            // Only admins can use, or even see, /mine. Players use /mines instead.
-            .requires(source -> source.getSender().hasPermission("thebox.admin"))
             .executes(this::help)
             .then(Commands.literal("create")
                 .then(Commands.argument("id", StringArgumentType.word())
@@ -124,17 +123,17 @@ public class MineCommand {
     private int help(CommandContext<CommandSourceStack> ctx) {
         ctx.getSource().getSender().sendRichMessage("""
             <gold>TheBox mine commands:</gold>
-            <yellow>/mine create \\<id></yellow> <gray>- create a mine from your WorldEdit selection</gray>
-            <yellow>/mine list</yellow> <gray>- list all mines</gray>
-            <yellow>/mine reset \\<mine></yellow> <gray>- refill a mine now</gray>
-            <yellow>/mine addblock \\<mine> \\<block> \\<weight></yellow> <gray>- add or change a block in the mix</gray>
-            <yellow>/mine removeblock \\<mine> \\<block></yellow> <gray>- remove a block from the mix</gray>
-            <yellow>/mine setresettime \\<mine> \\<seconds></yellow> <gray>- automatic reset interval (0 = off)</gray>
-            <yellow>/mine setname \\<mine> \\<name></yellow> <gray>- the name players see (MiniMessage, e.g. \\<gold>Gold Rush)</gray>
-            <yellow>/mine setresetpercent \\<mine> \\<percent></yellow> <gray>- reset once this % is mined (0 = off)</gray>
-            <yellow>/mine settp \\<mine></yellow> <gray>- set the teleport point to where you stand</gray>
-            <yellow>/mine delete \\<mine></yellow> <gray>- delete a mine (blocks stay)</gray>
-            <yellow>/mine reload</yellow> <gray>- re-read mines.yml</gray>""");
+            <yellow>/thebox mine create \\<id></yellow> <gray>- create a mine from your WorldEdit selection</gray>
+            <yellow>/thebox mine list</yellow> <gray>- list all mines</gray>
+            <yellow>/thebox mine reset \\<mine></yellow> <gray>- refill a mine now</gray>
+            <yellow>/thebox mine addblock \\<mine> \\<block> \\<weight></yellow> <gray>- add or change a block in the mix</gray>
+            <yellow>/thebox mine removeblock \\<mine> \\<block></yellow> <gray>- remove a block from the mix</gray>
+            <yellow>/thebox mine setresettime \\<mine> \\<seconds></yellow> <gray>- automatic reset interval (0 = off)</gray>
+            <yellow>/thebox mine setname \\<mine> \\<name></yellow> <gray>- the name players see (MiniMessage, e.g. \\<gold>Gold Rush)</gray>
+            <yellow>/thebox mine setresetpercent \\<mine> \\<percent></yellow> <gray>- reset once this % is mined (0 = off)</gray>
+            <yellow>/thebox mine settp \\<mine></yellow> <gray>- set the teleport point to where you stand</gray>
+            <yellow>/thebox mine delete \\<mine></yellow> <gray>- delete a mine (blocks stay)</gray>
+            <yellow>/thebox mine reload</yellow> <gray>- re-read mines.yml</gray>""");
         return Command.SINGLE_SUCCESS;
     }
 
@@ -169,7 +168,7 @@ public class MineCommand {
 
         player.sendRichMessage("<green>Created mine <white>" + id + "</white> from "
             + min.x() + ", " + min.y() + ", " + min.z() + " to " + max.x() + ", " + max.y() + ", " + max.z() + ".</green>");
-        player.sendRichMessage("<gray>It's all stone for now: use /mine addblock to set the mix, then /mine reset " + id + ".");
+        player.sendRichMessage("<gray>It's all stone for now: use /thebox mine addblock to set the mix, then /thebox mine reset " + id + ".");
         return Command.SINGLE_SUCCESS;
     }
 
@@ -183,7 +182,7 @@ public class MineCommand {
     private int list(CommandContext<CommandSourceStack> ctx) {
         CommandSender sender = ctx.getSource().getSender();
         if (mines.getAll().isEmpty()) {
-            sender.sendRichMessage("<gray>No mines yet. Create one with /mine create \\<id>.");
+            sender.sendRichMessage("<gray>No mines yet. Create one with /thebox mine create \\<id>.");
             return Command.SINGLE_SUCCESS;
         }
         sender.sendRichMessage("<gold>Mines:");

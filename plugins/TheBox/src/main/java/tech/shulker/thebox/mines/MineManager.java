@@ -233,9 +233,9 @@ public class MineManager implements Listener {
     public void save() {
         YamlConfiguration yaml = new YamlConfiguration();
         yaml.options().setHeader(List.of(
-            "TheBox mines. Edited by /mine commands.",
-            "You can also edit this file by hand: run /mine reload afterwards,",
-            "otherwise the next /mine change will overwrite your edits."));
+            "TheBox mines. Edited by /thebox mine commands.",
+            "You can also edit this file by hand: run /thebox mine reload afterwards,",
+            "otherwise the next /thebox mine change will overwrite your edits."));
 
         for (Mine mine : mines.values()) {
             String path = "mines." + mine.getId() + ".";
