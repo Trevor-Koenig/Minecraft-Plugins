@@ -166,7 +166,21 @@ lp track ranks append z
 
 Check it: `lp track ranks info` should list `a` through `z` in order.
 
-From now on, TheBox puts every player who joins into `a` if they aren't on the track yet. Leave LuckPerms' `default` group alone; LuckPerms advises against replacing it.
+### New players start in `a`
+
+There's no LuckPerms setting for this. TheBox does it itself: whenever a player joins and isn't on the `ranks` track yet, TheBox adds them to `a`. That includes players who joined before the track existed, at their next join.
+
+LuckPerms also puts every player in its built-in `default` group, and they stay there. Leave it alone. LuckPerms doesn't let you swap it for another group and [recommends keeping it](https://luckperms.net/wiki/Default-Groups). So `lp user <name> info` lists both `default` and `a`, which is expected.
+
+### Commands every player gets
+
+Players who aren't op have no permissions apart from Paper's basics. EssentialsX's `player-commands` list in its `config.yml` does nothing once LuckPerms is installed, so grant everyday commands to LuckPerms' `default` group. Every player is in `default` whatever their rank, so these work even if a player isn't on the ladder yet. Rank perks go on `a` to `z`. EssentialsX's permission for a command is `essentials.<command>`:
+```
+lp group default permission set essentials.balance true
+lp group default permission set essentials.balancetop true
+lp group default permission set essentials.pay true
+```
+That's `/balance` (or `/bal`, `/money`), `/baltop` and `/pay`. They take effect right away, with no restart. Add others the same way, for example `essentials.msg` for `/msg` and `/r`. To see why a player does or doesn't have a permission: `lp user <name> permission check essentials.balance`. TheBox's own player commands (`/mines`, `/sell`, `/ranks`, `/rankup`, `/prestige`, `/market`) need no permission. Mine access (section 9) and stall renting (section 10) are granted by rank.
 
 ## 4. LuckPerms: the prestige track (console)
 
@@ -207,8 +221,8 @@ The first start writes `plugins/TheBox/ranks.yml` with ranks `a` to `z` and **pl
 ```
 /thebox rank setcost b 1500
 /thebox rank setname b <gray>B
-/thebox rank list
 ```
+`/ranks` shows the ladder; for admins it also shows each rank's id.
 Or edit `ranks.yml` by hand, then run `/thebox rank reload`. Reload right after editing: the next `/thebox rank` change saves the file and would overwrite unsaved hand edits.
 
 - `cost` is what it costs to rank up **to** that rank. Rank `a` is where everyone starts, so its cost is never charged.
@@ -345,20 +359,40 @@ Players rent stalls in a market, build in them, and (with QuickShop-Hikari) run 
 - After the grace period, everything in the stall (chest contents, the blocks themselves, item frames, armor stands) goes to the renter's **impound**, and the stall is free again. `/market claim` opens the impound as a chest menu. Unclaimed items are sold at `prices.yml` value after `impound-expiry-days` (unpriced or customized items are worth nothing).
 - `/market trust <player>` lets a friend build; `/market unrent` gives the stall up (contents go to the impound, no refund).
 
-**Shops:** with QuickShop-Hikari installed, players make shops on chests in their own stall. QuickShop only allows a shop where the player could break blocks, and WorldGuard only lets them do that in their own stall. Shops in a frozen stall don't sell, and they're deleted when the stall is cleared.
+**Shops (QuickShop-Hikari):** creating a shop is op-only by default. Buying from shops already works for every player (`quickshop.use`). Give creating to the same rank that can rent:
+```
+lp group c permission set quickshop.player true
+```
+`quickshop.player` is QuickShop's bundle of everything a normal player needs.
+- Keep `protection-checking: true` in `plugins/QuickShop-Hikari/config.yml` (the default). That's what limits shops to blocks the player could break, and WorldGuard only lets them break blocks in their own stall.
+- QuickShop's optional `Compat-WorldGuard` add-on isn't needed.
+- Shops in a frozen stall don't sell. When the stall is cleared, its shops and their signs are deleted.
+
+How players make a shop ([QuickShop's guide](https://quickshop-community.github.io/QuickShop-Hikari-Documents/docs/modules/shops/shop-basic)), worth putting on a sign at the market:
+1. Rent a stall and place a chest or barrel in it.
+2. Hold the item to sell and left-click the chest, without sneaking. Type the price in chat. QuickShop puts the shop sign on the side that was clicked, so click from where shoppers will stand.
+3. Put stock in the chest. Right-click the sign for the control panel: change the price, or switch the shop to **buying** (it buys that item from other players instead).
+4. Shoppers left-click the chest or sign and type how many they want in chat.
+
+Breaking the chest removes the shop. Trusted friends can make shops in the stall too; those shops, and their earnings, are theirs.
 
 **Admin tools:** `/thebox market stall evict main s1` clears a stall into its renter's impound right away. `stall setrent` changes the rent, `stall delete` removes a free stall.
 
 ## 11. Prestige rewards
 
-> Needs PlayerParticles.
+> Needs PlayerParticles. The version TheBox is tested with (8.13) lists Minecraft up to 26.2, so check it enables on 26.3 (`/plugins` shows it green).
 
-Rewards are permissions on prestige groups, like mine unlocks on rank groups. A particle needs both an **effect** (which particle) and a **style** (the shape). Names are listed in the [PlayerParticles particle details](https://wiki.rosewooddev.io/PlayerParticles/particle-details/).
+Rewards are permissions on prestige groups, like mine unlocks on rank groups. Every player can open `/pp`, but they start with nothing in it: every effect and style is locked except the `normal` style, until a group grants it. A particle needs both an **effect** (which particle) and a **style** (the shape). Names are listed in the [PlayerParticles particle details](https://wiki.rosewooddev.io/PlayerParticles/particle-details/).
 ```
 lp group p1 permission set playerparticles.effect.end_rod true
 lp group p1 permission set playerparticles.style.halo true
 lp group p3 permission set playerparticles.style.wings true
 ```
+- Each prestige group inherits the one before it, so P3 players keep P1's particles.
+- Rank groups work the same way, if a rank should unlock something too: `lp group m permission set playerparticles.effect.flame true`.
+- `playerparticles.effect.*` and `playerparticles.style.*` unlock everything (e.g. for staff).
+- How many particles a player can wear at once is `max-particles` in `plugins/PlayerParticles/config.yml` (default 3). To raise it for a group, grant `playerparticles.particles.max.<number>`, e.g. `lp group p5 permission set playerparticles.particles.max.5 true`.
+
 Players pick their particles with `/pp`.
 
 ## 12. Food
@@ -389,11 +423,11 @@ Its cooldown is `heal-cooldown` in `plugins/Essentials/config.yml` (default 60 s
 ## 13. Check that it works
 
 As a **non-op** player:
-1. Join, then in the console run `lp user <name> info`. The player should be in group `a`.
+1. Join, then in the console run `lp user <name> info`. The player should be in groups `default` and `a`. `/balance`, `/baltop` and `/pay` work.
 2. Breaking or placing blocks outside a mine is blocked (WorldGuard says so in chat).
 3. `/mines` lists the unlocked mines; `/mines quarry` teleports there. Breaking blocks in the mine works; placing them doesn't. PvP works in every mine except the starter mine, and nowhere else. After hitting another player, `/mines` is blocked for 15 seconds, and logging out in that time kills you.
 4. Mine some blocks, then run `/sell all` (or `/sell hand`, `/sell worth`).
-5. `/rankup` buys the next rank (`/rankup max` buys as many as you can afford). The whole server sees an announcement.
+5. `/ranks` shows the ladder with the player's rank marked and the next rank's cost. `/rankup` buys the next rank (`/rankup max` buys as many as you can afford). The whole server sees an announcement.
 6. Walking into a locked mine is blocked with "You haven't unlocked … yet."
 7. At the top rank, `/prestige` explains what prestiging does, and `/prestige confirm` does it: the player goes back to `a`, joins `p1`, and the server sees an announcement.
 8. `/market`, stand in a free stall, `/market rent`. Building works in your stall and nowhere else in the market. With `day-length-minutes: 2` and auto-renew off, the stall freezes after 2 minutes; after the grace period its contents show up in `/market claim`.

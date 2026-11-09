@@ -20,6 +20,7 @@ import tech.shulker.thebox.ranks.PrestigeCommand;
 import tech.shulker.thebox.ranks.RankCommand;
 import tech.shulker.thebox.ranks.RankLadder;
 import tech.shulker.thebox.ranks.RankManager;
+import tech.shulker.thebox.ranks.RanksCommand;
 import tech.shulker.thebox.ranks.RankupCommand;
 import tech.shulker.thebox.sell.PriceManager;
 import tech.shulker.thebox.sell.SellCommand;
@@ -96,6 +97,7 @@ public class TheBox extends JavaPlugin {
             // Player commands stay short and top-level, like on other prison servers.
             event.registrar().register(new MinesCommand(mineManager).createNode(), "Teleport to a mine you've unlocked");
             event.registrar().register(sellCommand.createNode(), "Sell items for money");
+            event.registrar().register(new RanksCommand(rankManager, ladder).createNode(), "See the ranks and what the next one costs");
             event.registrar().register(new RankupCommand(rankManager, ladder, getLogger()).createNode(), "Buy the next rank");
             event.registrar().register(new PrestigeCommand(rankManager, ladder, getLogger()).createNode(), "Start the ranks again with a prestige level");
             event.registrar().register(new MarketCommand(marketManager, getLogger()).createNode(), "Go to the market and rent a stall");

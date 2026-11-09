@@ -127,7 +127,7 @@ Compare against existing prison servers before finalizing.
 **Admins**: all under one root, `/thebox` (decided 2026-11-08). Player commands stay short and top-level, like on other prison servers. Grouping admin commands gives one autocomplete entry point, avoids the `/mine` vs `/mines` mix-up, and keeps `/sell` player-only.
 - `/thebox mine create|delete|list|reset|addblock|removeblock|setresettime|setresetpercent|setname|settp|reload`
 - `/thebox price set|remove|list|reload`
-- `/thebox rank list|setname|setcost|reload` (edits `ranks.yml` in-game)
+- `/thebox rank setname|setcost|setprestigemultiplier|reload` (edits `ranks.yml` in-game). The list moved to the player command `/ranks` (2026-11-08).
 - `/thebox` requires `thebox.admin`. Brigadier's `.requires(...)` on the root guards, and hides, every admin command at once. Each feature's command class builds its own subtree, which is attached under the root with `.then(node)`.
 - Every command is also reachable as `/thebox:<label>` (Paper adds the plugin-name prefix automatically).
 - `/tb` is an alias for `/thebox`. Paper skips an alias another plugin already uses; `/thebox` always works.
@@ -234,7 +234,7 @@ Steps:
 - [ ] 1. Test server: add LuckPerms via `downloadPlugins`. By hand, create groups `a`, `b`, `c` on a `ranks` track, and `p1`, `p2` on a `prestige` track (just a few groups while developing). This is a chance to learn LuckPerms itself.
 - [x] 2. LuckPerms API `compileOnly` dependency (`net.luckperms:api:5.5`), `depend: [WorldEdit, Vault, LuckPerms]`, look up the API through Bukkit's ServicesManager *(built 2026-11-08)*
 - [x] 3. `ranks.yml` (display names, costs) plus `/thebox rank setname|setcost|list|reload` *(built 2026-11-08, untested; doesn't touch LuckPerms yet)*. The first start writes a–z with placeholder costs (b = 1000, c = 2000, …).
-- [ ] 4. `/ranks`: the ladder, with the player's current rank and the next cost
+- [x] 4. `/ranks`: the ladder, with the player's current rank and the next cost *(built 2026-11-08, untested)*. Costs shown at the player's prestige; the console sees base costs; admins also see rank ids. Replaces `/thebox rank list`.
 - [x] 5. `/rankup`: charge through Vault, then promote along the track *(built 2026-11-08, untested)*
 - [x] 6. `/rankup max` *(built 2026-11-08, untested)*
 
@@ -291,12 +291,13 @@ All built 2026-11-08; **untested in-game**. Implementation notes:
 
 ### M6: Cells
 Personal cells with buyable upgrades and bigger cells (see Cell above). Hand-built and registered like stalls, so it reuses the market's region module. To be planned in detail.
+- Shops in cells? QuickShop allows a shop wherever the player can build, so once cells exist, shops could appear in cells too. If shops should stay in the market, TheBox's QuickShop hook can cancel `ShopCreateEvent` outside stalls.
 
 ### Gangs *(paused 2026-11-08)*
 Gang bank, alliances, friendly-fire rules, gang chat. See Gang above.
 
 ### ★ First playable release
-After M1–M6, plus M3's remaining steps (`/ranks`, chat tags). Deploy TheBox to the real server and gather player feedback before building further.
+After M1–M6, plus M3's remaining step (chat tags). Deploy TheBox to the real server and gather player feedback before building further.
 
 ## 7. Open questions
 - ~~Rank-up costs~~: decided, set by hand per rank (see M3).
@@ -305,6 +306,8 @@ After M1–M6, plus M3's remaining steps (`/ranks`, chat tags). Deploy TheBox to
 - ~~Player progress storage~~: decided, LuckPerms (see M3).
 - ~~Prestige resets the balance?~~ Decided: no, since rank costs already rise with prestige.
 - ~~Chat tags~~: decided, TheBox formats chat itself with [Paper's chat API](https://docs.papermc.io/paper/dev/chat-events/) (see Chat). PlaceholderAPI can be added later if a scoreboard or tab list needs ranks too.
+- **On-screen balance** *(asked for by players, 2026-11-08)*: a sidebar showing balance, rank and prestige. Either TheBox draws it with per-player scoreboards, which hides PvPManager's combat nametags because those are scoreboard teams, or TAB + PlaceholderAPI draws it from `%thebox_…%` placeholders that TheBox provides.
+- **Lifetime earnings** *(asked for by players, 2026-11-08)*: EssentialsX only stores the current balance. TheBox would count it itself, e.g. every `/sell` payout, saved per player. Still to decide what counts (just `/sell`, or shop sales and `/pay` too) and where it shows (a command, the sidebar, a leaderboard).
 - ~~Sell prices~~: decided, global for now (see M2).
 - ~~Economy plugin~~: decided, **EssentialsX + VaultUnlocked** (see M2).
 - ~~Items with custom data~~: decided, `/sell all` skips them (see M2).

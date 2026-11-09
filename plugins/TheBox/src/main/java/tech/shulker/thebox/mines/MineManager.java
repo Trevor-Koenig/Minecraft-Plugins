@@ -30,6 +30,7 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.event.player.PlayerTeleportEvent;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.plugin.java.JavaPlugin;
 import tech.shulker.thebox.utils.SavedLocation;
@@ -197,9 +198,8 @@ public class MineManager implements Listener {
 
     /**
      * Keeps players out of mines they haven't unlocked. PlayerMoveEvent fires many times a second per player, so
-     * bail out early unless the player moved into a different block. Teleports fire this event too
-     * (PlayerTeleportEvent extends PlayerMoveEvent), so teleporting into a locked mine is blocked as well.
-     * Players already inside a mine can always walk out.
+     * bail out early unless the player moved into a different block. Teleports don't reach this handler
+     * (see onTeleport). Players already inside a mine can always walk out.
      */
     @EventHandler(ignoreCancelled = true)
     public void onMove(PlayerMoveEvent event) {
@@ -219,6 +219,16 @@ public class MineManager implements Listener {
                 return;
             }
         }
+    }
+
+    /**
+     * PlayerTeleportEvent extends PlayerMoveEvent but has its own HandlerList, and Bukkit only calls the
+     * handlers registered on the fired event's own list. So teleports (ender pearls, /tpa, /home) need their
+     * own handler to be checked the same way.
+     */
+    @EventHandler(ignoreCancelled = true)
+    public void onTeleport(PlayerTeleportEvent event) {
+        onMove(event);
     }
 
     // ---------------------------------------------------------------- storage

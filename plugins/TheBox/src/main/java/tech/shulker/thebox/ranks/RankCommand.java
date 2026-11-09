@@ -16,7 +16,7 @@ import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.command.CommandSender;
 import tech.shulker.thebox.sell.VaultEconomy;
 
-/** The admin command: /thebox rank list|setname|setcost|reload. Mounted under /thebox, which checks thebox.admin. */
+/** The admin command: /thebox rank setname|setcost|setprestigemultiplier|reload. Mounted under /thebox, which checks thebox.admin. */
 public class RankCommand {
 
     private static final DynamicCommandExceptionType UNKNOWN_RANK =
@@ -31,8 +31,6 @@ public class RankCommand {
     public LiteralCommandNode<CommandSourceStack> createNode() {
         return Commands.literal("rank")
             .executes(this::help)
-            .then(Commands.literal("list")
-                .executes(this::list))
             .then(Commands.literal("setname")
                 .then(rankArgument()
                     .then(Commands.argument("name", StringArgumentType.greedyString())
@@ -77,29 +75,11 @@ public class RankCommand {
 
     private int help(CommandContext<CommandSourceStack> ctx) {
         ctx.getSource().getSender().sendRichMessage("""
-            <gold>TheBox rank commands:</gold>
-            <yellow>/thebox rank list</yellow> <gray>- the ladder, with names and costs</gray>
+            <gold>TheBox rank commands:</gold> <gray>(the ladder itself: /ranks, which shows admins the rank ids)</gray>
             <yellow>/thebox rank setname \\<rank> \\<name></yellow> <gray>- the name players see (MiniMessage, e.g. \\<light_purple>Shulker)</gray>
             <yellow>/thebox rank setcost \\<rank> \\<cost></yellow> <gray>- what ranking up to it costs</gray>
             <yellow>/thebox rank setprestigemultiplier \\<multiplier></yellow> <gray>- extra cost per prestige level (0.5 = +50%)</gray>
             <yellow>/thebox rank reload</yellow> <gray>- re-read ranks.yml</gray>""");
-        return Command.SINGLE_SUCCESS;
-    }
-
-    private int list(CommandContext<CommandSourceStack> ctx) {
-        CommandSender sender = ctx.getSource().getSender();
-        if (ranks.getAll().isEmpty()) {
-            sender.sendRichMessage("<gray>No ranks. Check ranks.yml, then run /thebox rank reload.");
-            return Command.SINGLE_SUCCESS;
-        }
-        sender.sendRichMessage("<gold>Ranks:</gold> <gray>(base costs; each prestige level adds "
-            + Math.round(ranks.getPrestigeMultiplier() * 100) + "%)");
-        for (Rank rank : ranks.getAll()) {
-            String cost = ranks.isFirst(rank) ? "starting rank" : VaultEconomy.format(sender, rank.getCost());
-            sender.sendRichMessage("<yellow>" + rank.getId() + "</yellow> <gray>-</gray> <name> <gray>- <cost>",
-                Placeholder.parsed("name", rank.getDisplayName()),
-                Placeholder.unparsed("cost", cost));
-        }
         return Command.SINGLE_SUCCESS;
     }
 
