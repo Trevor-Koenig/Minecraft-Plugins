@@ -1,0 +1,619 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+package tech.shulker.thebox.cells;
+
+import com.sk89q.worldguard.protection.flags.Flags;
+import com.sk89q.worldguard.protection.flags.StateFlag;
+import com.sk89q.worldguard.protection.regions.ProtectedRegion;
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.UUID;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import org.bukkit.Location;
+import org.bukkit.NamespacedKey;
+import org.bukkit.Registry;
+import org.bukkit.World;
+import org.bukkit.block.BlockType;
+import org.bukkit.block.data.BlockData;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.plugin.java.JavaPlugin;
+import tech.shulker.thebox.market.Impound;
+import tech.shulker.thebox.market.ShopHook;
+import tech.shulker.thebox.regions.Box;
+import tech.shulker.thebox.regions.RegionClearer;
+import tech.shulker.thebox.regions.Regions;
+import tech.shulker.thebox.utils.Durations;
+
+/**
+ * Owns the cells: storage in cells.yml (tiers and cells), carving rooms, each cell's WorldGuard regions, handing
+ * out cells, upgrades, tier moves, and the timer that clears old cells after a move.
+ */
+public class CellManager implements Listener {
+
+    /** Like stall regions: cell regions outrank a surrounding region (say, one protecting the whole cell block). */
+    private static final int REGION_PRIORITY = 10;
+
+    /** Cell regions get no hostile mobs: a dark room would otherwise spawn them. */
+    private static final Consumer<ProtectedRegion> NO_MOBS = region -> region.setFlag(Flags.MOB_SPAWNING, StateFlag.State.DENY);
+
+    private final JavaPlugin plugin;
+    private final File file;
+    private final Impound impound;
+    /** The market's shop hook, looked up when needed (QuickShop's hook is registered after TheBox creates this). */
+    private final Supplier<ShopHook> shops;
+    private final TreeMap<Integer, CellTier> tiers = new TreeMap<>();
+    private final Map<String, Cell> cells = new TreeMap<>();
+
+    // Settings, from cells.yml.
+    private int moveDays = 7;
+    private int maxHelpers = 2;
+    /** How long a "day" lasts. 1440 is a real day; a small number makes tier moves testable in minutes. */
+    private int dayLengthMinutes = 1440;
+
+    public CellManager(JavaPlugin plugin, Impound impound, Supplier<ShopHook> shops) {
+        this.plugin = plugin;
+        this.file = new File(plugin.getDataFolder(), "cells.yml");
+        this.impound = impound;
+        this.shops = shops;
+    }
+
+    public int getMoveDays() { return moveDays; }
+    public int getMaxHelpers() { return maxHelpers; }
+    public long getDayMillis() { return dayLengthMinutes * 60_000L; }
+
+    // ---------------------------------------------------------------- lookup
+
+    /** Cell ids are used in region ids, YAML keys and commands, so keep them simple. */
+    public static boolean isValidId(String id) {
+        return id.matches("[a-z0-9_]+");
+    }
+
+    public Collection<Cell> getAll() { return cells.values(); }
+    public Cell get(String id) { return cells.get(id); }
+    public Collection<CellTier> getTiers() { return tiers.values(); }
+    public CellTier getTier(int number) { return tiers.get(number); }
+
+    /** The cell's current size, or null if its tier isn't in cells.yml. */
+    public CellTier.Size sizeOf(Cell cell) {
+        CellTier tier = tiers.get(cell.getTier());
+        return tier == null ? null : tier.sizes().get(cell.getSize());
+    }
+
+    /** Where the owner arrives in the cell, or null if it isn't set up or its world isn't loaded. */
+    public Location home(Cell cell) {
+        CellTier.Size size = sizeOf(cell);
+        return size == null || !cell.isReady() ? null : cell.home(size);
+    }
+
+    /** The player's cell (not counting one they're moving out of), or null. */
+    public Cell currentCell(UUID player) {
+        for (Cell cell : cells.values()) {
+            if (player.equals(cell.getOwner()) && !cell.isMovingOut()) {
+                return cell;
+            }
+        }
+        return null;
+    }
+
+    /** The cell the player is moving out of, or null. */
+    public Cell oldCell(UUID player) {
+        for (Cell cell : cells.values()) {
+            if (player.equals(cell.getOwner()) && cell.isMovingOut()) {
+                return cell;
+            }
+        }
+        return null;
+    }
+
+    /** A free cell in the tier that's set up and whose world is loaded, or null. */
+    public Cell freeCell(int tier) {
+        for (Cell cell : cells.values()) {
+            if (cell.getTier() == tier && cell.isFree() && cell.isReady() && cell.getWorld() != null && tiers.containsKey(tier)) {
+                return cell;
+            }
+        }
+        return null;
+    }
+
+    /** True if the box overlaps another cell's plot or front space. */
+    public boolean overlapsAny(String world, Box box, Cell except) {
+        for (Cell cell : cells.values()) {
+            if (cell != except && cell.getWorldName().equals(world)
+                    && (cell.getPlot().overlaps(box) || (cell.getFront() != null && cell.getFront().overlaps(box)))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Sizes are numbered across all tiers, 1 for the starting cell: size n needs thebox.cell.size.n. */
+    public int sizeNumber(int tierNumber, int index) {
+        int before = 0;
+        for (CellTier tier : tiers.headMap(tierNumber).values()) {
+            before += tier.sizes().size();
+        }
+        return before + index + 1;
+    }
+
+    /** What the cell's next upgrade is: a bigger room in place, or a move to the next tier. */
+    public record Upgrade(CellTier tier, int index, int number, CellTier.Size size, boolean move) {
+        public String permission() {
+            return "thebox.cell.size." + number;
+        }
+    }
+
+    /** The cell's next upgrade, or null if it's as big as it gets (or its tier isn't in cells.yml). */
+    public Upgrade nextUpgrade(Cell cell) {
+        CellTier tier = tiers.get(cell.getTier());
+        if (tier == null) {
+            return null;
+        }
+        int next = cell.getSize() + 1;
+        if (next < tier.sizes().size()) {
+            return new Upgrade(tier, next, sizeNumber(tier.number(), next), tier.sizes().get(next), false);
+        }
+        Map.Entry<Integer, CellTier> higher = tiers.higherEntry(tier.number());
+        if (higher == null) {
+            return null;
+        }
+        CellTier nextTier = higher.getValue();
+        return new Upgrade(nextTier, 0, sizeNumber(nextTier.number(), 0), nextTier.sizes().getFirst(), true);
+    }
+
+    // ---------------------------------------------------------------- changes (each one saves)
+
+    public void addCell(Cell cell) {
+        cells.put(cell.getId(), cell);
+        save();
+    }
+
+    /** Forgets the cell and removes its regions. Its blocks stay as they are. */
+    public void removeCell(Cell cell) {
+        Regions.remove(plugin.getLogger(), cell.getWorld(), cell.getRoomRegionId());
+        Regions.remove(plugin.getLogger(), cell.getWorld(), cell.getFrontRegionId());
+        cells.remove(cell.getId());
+        save();
+    }
+
+    /** Sets a free cell's front space, rebuilds it as a fresh starting room, and creates its regions. */
+    public void setFront(Cell cell, Box front, Cell.Front facing) {
+        cell.setFront(front, facing);
+        rebuild(cell);
+        syncRegions(cell);
+        save();
+        giveCellsToWaitingPlayers();
+    }
+
+    /** Gives the player a free starting cell (first tier), or returns null if none is free. */
+    public Cell assignStarterCell(UUID player) {
+        if (tiers.isEmpty()) {
+            return null;
+        }
+        Cell cell = freeCell(tiers.firstKey());
+        if (cell != null) {
+            cell.assign(player);
+            syncRegions(cell);
+            save();
+        }
+        return cell;
+    }
+
+    /** Grows the cell to its tier's next size: carves away the wall between the old room and the new one. */
+    public void upgradeInPlace(Cell cell) {
+        CellTier tier = tiers.get(cell.getTier());
+        Box oldRoom = cell.room(tier.sizes().get(cell.getSize()));
+        cell.setSize(cell.getSize() + 1);
+        carve(cell, oldRoom, cell.room(tier.sizes().get(cell.getSize())));
+        syncRegions(cell);
+        save();
+    }
+
+    /**
+     * Gives the owner of {@code from} the free cell {@code to} (in the next tier). The old cell stays theirs for
+     * moveDays so they can carry their things over; then it's cleared into their impound (see checkMoves).
+     */
+    public void move(Cell from, Cell to) {
+        to.assign(from.getOwner());
+        to.getHelpers().addAll(from.getHelpers());
+        from.setReleaseAt(System.currentTimeMillis() + moveDays * getDayMillis());
+        syncRegions(to);
+        save();
+    }
+
+    /**
+     * Clears the cell and frees it: everything in it goes to the owner's impound, and the plot is rebuilt as a fresh
+     * starting room. Returns the number of stacks impounded, or -1 if the cell's world isn't loaded (nothing changes
+     * then: freeing a cell without clearing it would hand the old owner's things to the next one).
+     */
+    public int release(Cell cell) {
+        int stacks = clearAndFree(cell, true);
+        if (stacks >= 0) {
+            save();
+            giveCellsToWaitingPlayers();
+        }
+        return stacks;
+    }
+
+    /** New season: clears every cell (nothing goes to the impound) and frees it. Returns how many were cleared. */
+    public int wipe() {
+        int cleared = 0;
+        for (Cell cell : cells.values()) {
+            if (cell.isReady() && clearAndFree(cell, false) >= 0) {
+                cleared++;
+            }
+        }
+        save();
+        giveCellsToWaitingPlayers();
+        return cleared;
+    }
+
+    public void addHelper(Cell cell, UUID helper) {
+        cell.getHelpers().add(helper);
+        syncRegions(cell);
+        save();
+    }
+
+    public void removeHelper(Cell cell, UUID helper) {
+        cell.getHelpers().remove(helper);
+        syncRegions(cell);
+        save();
+    }
+
+    private int clearAndFree(Cell cell, boolean toImpound) {
+        World world = cell.getWorld();
+        CellTier.Size size = sizeOf(cell);
+        if (world == null || size == null || !cell.isReady()) {
+            return -1;
+        }
+        Box room = cell.room(size);
+        // Rebuilding fills the room with wall, so nobody may be standing in it: send them out to the front space.
+        Location outside = cell.visit();
+        for (Player player : world.getPlayers()) {
+            if (room.contains(player.getLocation())) {
+                player.teleport(outside);
+            }
+        }
+        // The front region includes the front wall, so a door or window the owner put in it comes back to them too.
+        List<ItemStack> items = new ArrayList<>(RegionClearer.clear(world, room, shops.get()));
+        items.addAll(RegionClearer.clear(world, cell.frontRegion(), shops.get()));
+        UUID owner = cell.getOwner();
+        if (toImpound && owner != null && !items.isEmpty()) {
+            impound.add(owner, items);
+        }
+        cell.assign(null);
+        rebuild(cell);
+        syncRegions(cell);
+        return items.size();
+    }
+
+    // ---------------------------------------------------------------- blocks
+
+    /** Fills the whole plot with its wall block, then carves the starting room. */
+    private void rebuild(Cell cell) {
+        World world = cell.getWorld();
+        CellTier tier = tiers.get(cell.getTier());
+        if (world == null || tier == null || !cell.isReady()) {
+            return;
+        }
+        fill(world, cell.getPlot(), wallBlockData(cell));
+        fill(world, cell.room(tier.sizes().getFirst()), BlockType.AIR.createBlockData());
+    }
+
+    /**
+     * Removes the wall between the old room and the new one. Blocks inside the old room aren't touched, so
+     * everything the owner built stays. Things hung on an old wall (torches, signs) are left floating, and
+     * drop as items the next time a neighboring block changes.
+     */
+    private void carve(Cell cell, Box oldRoom, Box newRoom) {
+        World world = cell.getWorld();
+        if (world == null) {
+            return;
+        }
+        BlockData air = BlockType.AIR.createBlockData();
+        for (int x = newRoom.minX(); x <= newRoom.maxX(); x++) {
+            for (int y = newRoom.minY(); y <= newRoom.maxY(); y++) {
+                for (int z = newRoom.minZ(); z <= newRoom.maxZ(); z++) {
+                    if (!oldRoom.contains(x, y, z)) {
+                        world.getBlockAt(x, y, z).setBlockData(air, false);
+                    }
+                }
+            }
+        }
+    }
+
+    /** Sets every block in the box. applyPhysics=false: no neighbor updates, so nothing cascades or drops. */
+    private static void fill(World world, Box box, BlockData data) {
+        for (int x = box.minX(); x <= box.maxX(); x++) {
+            for (int y = box.minY(); y <= box.maxY(); y++) {
+                for (int z = box.minZ(); z <= box.maxZ(); z++) {
+                    world.getBlockAt(x, y, z).setBlockData(data, false);
+                }
+            }
+        }
+    }
+
+    private static BlockData wallBlockData(Cell cell) {
+        NamespacedKey key = NamespacedKey.fromString(cell.getWallBlock());
+        BlockType type = key == null ? null : Registry.BLOCK.get(key);
+        return (type != null ? type : BlockType.STONE_BRICKS).createBlockData();
+    }
+
+    // ---------------------------------------------------------------- WorldGuard
+
+    /**
+     * Makes the cell's two regions (room and front) match the cell: the owner and helpers are members, nobody while
+     * it's free. A cell that isn't set up has no regions.
+     */
+    private void syncRegions(Cell cell) {
+        World world = cell.getWorld();
+        CellTier.Size size = sizeOf(cell);
+        if (!cell.isReady() || size == null) {
+            Regions.remove(plugin.getLogger(), world, cell.getRoomRegionId());
+            Regions.remove(plugin.getLogger(), world, cell.getFrontRegionId());
+            return;
+        }
+        List<UUID> members = new ArrayList<>();
+        if (cell.getOwner() != null) {
+            members.add(cell.getOwner());
+            members.addAll(cell.getHelpers());
+        }
+        Regions.sync(plugin.getLogger(), world, cell.getRoomRegionId(), cell.room(size), REGION_PRIORITY, members, NO_MOBS);
+        Regions.sync(plugin.getLogger(), world, cell.getFrontRegionId(), cell.frontRegion(), REGION_PRIORITY, members, NO_MOBS);
+    }
+
+    // ---------------------------------------------------------------- handing out cells
+
+    /** Gives a starting cell to every online player who has none, while free cells last. */
+    private void giveCellsToWaitingPlayers() {
+        for (Player player : plugin.getServer().getOnlinePlayers()) {
+            UUID uuid = player.getUniqueId();
+            if (currentCell(uuid) != null || oldCell(uuid) != null) {
+                continue;
+            }
+            if (assignStarterCell(uuid) == null) {
+                return; // none left
+            }
+            player.sendRichMessage("<green>You got a cell! <yellow>/cell</yellow> takes you there.");
+        }
+    }
+
+    /** Every player gets a starting cell when they join without one (new players, and everyone after a season wipe). */
+    @EventHandler
+    public void onJoin(PlayerJoinEvent event) {
+        Player player = event.getPlayer();
+        UUID uuid = player.getUniqueId();
+        Cell old = oldCell(uuid);
+        if (old != null) {
+            player.sendRichMessage("<gold>You're moving out of your old cell: it's cleared in <time>, and what's left goes to your impound. "
+                + "<yellow>/cell old</yellow> takes you there.", Placeholder.unparsed("time", Durations.format(old.getReleaseAt() - System.currentTimeMillis())));
+        }
+        if (currentCell(uuid) != null || old != null || cells.isEmpty()) {
+            return; // has a cell, or this server doesn't use cells (yet)
+        }
+        if (assignStarterCell(uuid) != null) {
+            player.sendRichMessage("<green>You got a cell! <yellow>/cell</yellow> takes you there.");
+        } else {
+            player.sendRichMessage("<gold>Every cell is taken right now. You'll get one as soon as one is free.");
+            warnAdmins(player.getName() + " has no cell: every starting cell is taken. Build and register more (/thebox cell create).");
+        }
+    }
+
+    /** Logs a warning and tells online admins. */
+    void warnAdmins(String message) {
+        plugin.getLogger().warning(message);
+        for (Player online : plugin.getServer().getOnlinePlayers()) {
+            if (online.hasPermission("thebox.admin")) {
+                online.sendRichMessage("<red>[TheBox] <message>", Placeholder.unparsed("message", message));
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------- moving timer
+
+    /** Checks every 5 seconds for old cells whose moving time is up. */
+    public void startTimer() {
+        plugin.getServer().getScheduler().runTaskTimer(plugin, this::checkMoves, 100L, 100L);
+    }
+
+    private void checkMoves() {
+        long now = System.currentTimeMillis();
+        for (Cell cell : List.copyOf(cells.values())) {
+            if (!cell.isMovingOut() || now < cell.getReleaseAt() || cell.getWorld() == null) {
+                continue;
+            }
+            UUID owner = cell.getOwner();
+            int stacks = release(cell);
+            if (stacks < 0) {
+                continue;
+            }
+            plugin.getLogger().info("Cleared old cell " + cell.getId() + " of " + plugin.getServer().getOfflinePlayer(owner).getName()
+                + " after their move (" + stacks + " stacks impounded).");
+            Player online = plugin.getServer().getPlayer(owner);
+            if (online != null) {
+                online.sendRichMessage("<gold>Your old cell was cleared." + (stacks > 0 ? " " + stacks + " stack(s) went to your impound: /cell claim" : ""));
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------- storage
+
+    public void load() {
+        tiers.clear();
+        cells.clear();
+        YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
+        moveDays = Math.max(0, yaml.getInt("settings.move-days", 7));
+        maxHelpers = Math.max(0, yaml.getInt("settings.max-helpers", 2));
+        dayLengthMinutes = Math.max(1, yaml.getInt("settings.day-length-minutes", 1440));
+
+        ConfigurationSection tierSection = yaml.getConfigurationSection("tiers");
+        if (tierSection == null) {
+            addDefaultTiers();
+        } else {
+            for (String key : tierSection.getKeys(false)) {
+                int number;
+                try {
+                    number = Integer.parseInt(key);
+                } catch (NumberFormatException e) {
+                    plugin.getLogger().warning("cells.yml: skipping tier '" + key + "': tiers are numbered (1, 2, 3).");
+                    continue;
+                }
+                List<CellTier.Size> sizes = readSizes(key, tierSection.getMapList(key + ".sizes"));
+                if (sizes.isEmpty()) {
+                    plugin.getLogger().warning("cells.yml: tier " + key + " has no sizes; skipping it.");
+                    continue;
+                }
+                tiers.put(number, new CellTier(number, sizes));
+            }
+        }
+
+        ConfigurationSection cellSection = yaml.getConfigurationSection("cells");
+        if (cellSection != null) {
+            for (String id : cellSection.getKeys(false)) {
+                Cell cell = loadCell(id, cellSection.getConfigurationSection(id));
+                if (cell != null) {
+                    cells.put(id, cell);
+                }
+            }
+        }
+        // Make WorldGuard match cells.yml (recreates deleted regions, fixes members after hand edits).
+        cells.values().forEach(this::syncRegions);
+        if (tierSection == null) {
+            save(); // writes the default tiers, so admins can see and edit them
+        }
+    }
+
+    /** The default sizes (see design: a size every third rank, A to Y). Prices are placeholders, like ranks.yml's. */
+    private void addDefaultTiers() {
+        tiers.put(1, new CellTier(1, List.of(
+            new CellTier.Size(3, 3, 4, 0), new CellTier.Size(5, 5, 4, 1000), new CellTier.Size(7, 7, 4, 2000))));
+        tiers.put(2, new CellTier(2, List.of(
+            new CellTier.Size(11, 11, 6, 8000), new CellTier.Size(13, 13, 6, 5000), new CellTier.Size(15, 15, 6, 6000))));
+        tiers.put(3, new CellTier(3, List.of(
+            new CellTier.Size(19, 19, 8, 14000), new CellTier.Size(21, 21, 8, 8000), new CellTier.Size(23, 23, 8, 9000))));
+    }
+
+    /** Reads a tier's sizes. A size smaller than the one before it is raised to match: cells only ever grow. */
+    private List<CellTier.Size> readSizes(String tier, List<Map<?, ?>> maps) {
+        List<CellTier.Size> sizes = new ArrayList<>();
+        int width = 1;
+        int depth = 1;
+        int height = 2;
+        for (Map<?, ?> map : maps) {
+            int w = Math.max(width, number(map, "width", 1).intValue());
+            int d = Math.max(depth, number(map, "depth", 1).intValue());
+            int h = Math.max(height, number(map, "height", 2).intValue());
+            if (w != number(map, "width", 1).intValue() || d != number(map, "depth", 1).intValue() || h != number(map, "height", 2).intValue()) {
+                plugin.getLogger().warning("cells.yml: a size in tier " + tier + " is smaller than the one before it; raised to " + w + "x" + d + "x" + h + ".");
+            }
+            sizes.add(new CellTier.Size(w, d, h, Math.max(0, number(map, "price", 0).doubleValue())));
+            width = w;
+            depth = d;
+            height = h;
+        }
+        return sizes;
+    }
+
+    private static Number number(Map<?, ?> map, String key, Number fallback) {
+        return map.get(key) instanceof Number n ? n : fallback;
+    }
+
+    private Cell loadCell(String id, ConfigurationSection s) {
+        Box plot = s == null ? null : Box.read(s, "plot");
+        if (s == null || plot == null || !isValidId(id) || !s.isString("world") || !s.isInt("tier")) {
+            plugin.getLogger().warning("cells.yml: skipping cell '" + id + "': invalid id or entry.");
+            return null;
+        }
+        Cell cell = new Cell(id, s.getInt("tier"), s.getString("world"), plot, s.getString("wall-block", "minecraft:stone_bricks"));
+        Box front = Box.read(s, "front");
+        if (front != null) {
+            Cell.Front facing = Cell.Front.of(plot, front);
+            if (facing == null) {
+                plugin.getLogger().warning("cells.yml: cell '" + id + "': its front space doesn't lie against the plot; set it again with /thebox cell setfront.");
+            } else {
+                cell.setFront(front, facing);
+            }
+        }
+        String owner = s.getString("owner");
+        if (owner != null) {
+            try {
+                cell.assign(UUID.fromString(owner));
+                cell.setSize(s.getInt("size", 1) - 1);
+                for (String helper : s.getStringList("helpers")) {
+                    cell.getHelpers().add(UUID.fromString(helper));
+                }
+                cell.setReleaseAt(s.getLong("release-at"));
+            } catch (IllegalArgumentException e) {
+                plugin.getLogger().warning("cells.yml: cell '" + id + "' has a bad player id: " + e.getMessage());
+            }
+        }
+        CellTier tier = tiers.get(cell.getTier());
+        if (tier == null) {
+            plugin.getLogger().warning("cells.yml: cell '" + id + "' is in tier " + cell.getTier() + ", which isn't in the tiers list.");
+        } else {
+            cell.setSize(Math.clamp(cell.getSize(), 0, tier.sizes().size() - 1)); // in case a tier lost sizes
+        }
+        return cell;
+    }
+
+    public void save() {
+        YamlConfiguration yaml = new YamlConfiguration();
+        yaml.options().setHeader(List.of(
+            "TheBox cells. Edited by /thebox cell commands; upgrades and moves change it too.",
+            "You can edit it by hand: run /thebox cell reload right after, or the next change overwrites your edits.",
+            "tiers: the sizes a cell grows through (room floor width x depth, and height) and each one's price.",
+            "  The first size of tier 1 is the free starting cell; the first size of a later tier is a move to a new cell.",
+            "  Only change sizes before cells are built: plots are built for the largest size, and cells never shrink.",
+            "settings.day-length-minutes: how long a \"day\" lasts for move-days. Set it to e.g. 2 to test moving quickly."));
+        yaml.set("settings.move-days", moveDays);
+        yaml.set("settings.max-helpers", maxHelpers);
+        yaml.set("settings.day-length-minutes", dayLengthMinutes);
+        for (CellTier tier : tiers.values()) {
+            List<Map<String, Object>> sizes = new ArrayList<>();
+            for (CellTier.Size size : tier.sizes()) {
+                Map<String, Object> map = new LinkedHashMap<>();
+                map.put("width", size.width());
+                map.put("depth", size.depth());
+                map.put("height", size.height());
+                map.put("price", size.price());
+                sizes.add(map);
+            }
+            yaml.set("tiers." + tier.number() + ".sizes", sizes);
+        }
+        for (Cell cell : cells.values()) {
+            String path = "cells." + cell.getId();
+            yaml.set(path + ".tier", cell.getTier());
+            yaml.set(path + ".world", cell.getWorldName());
+            cell.getPlot().write(yaml, path + ".plot");
+            yaml.set(path + ".wall-block", cell.getWallBlock());
+            if (cell.getFront() != null) {
+                cell.getFront().write(yaml, path + ".front");
+            }
+            if (!cell.isFree()) {
+                yaml.set(path + ".owner", cell.getOwner().toString());
+                yaml.set(path + ".size", cell.getSize() + 1);
+                yaml.set(path + ".helpers", cell.getHelpers().stream().map(UUID::toString).toList());
+                if (cell.isMovingOut()) {
+                    yaml.set(path + ".release-at", cell.getReleaseAt());
+                }
+            }
+        }
+        try {
+            yaml.save(file);
+        } catch (IOException e) {
+            plugin.getLogger().severe("Could not save cells.yml: " + e.getMessage());
+        }
+    }
+}

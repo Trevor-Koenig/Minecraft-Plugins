@@ -180,7 +180,7 @@ lp group default permission set essentials.balance true
 lp group default permission set essentials.balancetop true
 lp group default permission set essentials.pay true
 ```
-That's `/balance` (or `/bal`, `/money`), `/baltop` and `/pay`. They take effect right away, with no restart. Add others the same way, for example `essentials.msg` for `/msg` and `/r`. To see why a player does or doesn't have a permission: `lp user <name> permission check essentials.balance`. TheBox's own player commands (`/mines`, `/sell`, `/ranks`, `/rankup`, `/prestige`, `/market`) need no permission. Mine access (section 9) and stall renting (section 10) are granted by rank.
+That's `/balance` (or `/bal`, `/money`), `/baltop` and `/pay`. They take effect right away, with no restart. Add others the same way, for example `essentials.msg` for `/msg` and `/r`. To see why a player does or doesn't have a permission: `lp user <name> permission check essentials.balance`. TheBox's own player commands (`/mines`, `/sell`, `/ranks`, `/rankup`, `/prestige`, `/market`, `/cell`) need no permission. Mine access (section 9), stall renting (section 10) and cell sizes (section 11) are granted by rank.
 
 ## 4. LuckPerms: the prestige track (console)
 
@@ -282,7 +282,7 @@ Mines are created from a WorldEdit selection, so this part needs a player. Repea
    /rg flag mine_quarry mob-spawning deny
    /rg flag mine_quarry pvp allow
    ```
-   Players can now break blocks in the mine, but not place any (placing stays protected). **PvP is on in every mine except the starter mine** (the one rank `a` unlocks), so new players are safe; for that one, skip the `pvp allow` line. Players who die drop their items as usual. If the mine sits inside another region that has its own flags, raise the mine's priority: `/rg setpriority mine_quarry 10`.
+   Players can now break blocks in the mine, but not place any (placing stays protected). **PvP is on in every mine except the starter mine** (the one rank `a` unlocks), so new players are safe; for that one, skip the `pvp allow` line. In the other mines, players only fight others at the mine's level (step 11). Players who die drop their items as usual. Make the region from the **same selection** as the mine: the level rule only covers the mine itself, so if the region is bigger, the extra strip has PvP without it. If the mine sits inside another region that has its own flags, raise the mine's priority: `/rg setpriority mine_quarry 10`.
 5. Set the block mix. Weights are relative, so these two make 70% stone and 30% coal ore:
    ```
    /thebox mine addblock quarry stone 70
@@ -311,8 +311,13 @@ Mines are created from a WorldEdit selection, so this part needs a player. Repea
     ```
     lp group a permission set thebox.mine.quarry true
     ```
+11. Set its PvP level. Number the mines 1, 2, 3, … in the order players unlock them; mines unlocked by the same rank share a level:
+    ```
+    /thebox mine setlevel quarry 2
+    ```
+    A player's level is the highest level among the mines they've unlocked. In a mine, players only fight others whose level matches the mine's, so higher ranks can't come back down to pick off newer players (and can't be hit there either). **A mine without a level has no PvP**, so set one on every PvP mine. Ops have every mine, so test this with non-op players.
 
-Check everything with `/thebox mine list`.
+Check everything with `/thebox mine list`; it shows each mine's level.
 
 Two separate locks, on purpose:
 - **Who can enter** a mine is TheBox's job (`thebox.mine.<id>`, granted by rank). WorldGuard's own `entry` flag only knows region members, not ranks.
@@ -378,7 +383,63 @@ Breaking the chest removes the shop. Trusted friends can make shops in the stall
 
 **Admin tools:** `/thebox market stall evict main s1` clears a stall into its renter's impound right away. `stall setrent` changes the rent, `stall delete` removes a free stall.
 
-## 11. Prestige rewards
+## 11. Cells (in-game)
+
+Every player gets a cell, a room of their own, when they join. Cells come in tiers: a player grows their cell in place, then moves to a bigger cell in the next tier's cell block. You build solid blocks; TheBox carves the rooms.
+
+**Sizes and prices** are in `plugins/TheBox/cells.yml` (run `/thebox cell reload` after editing). The defaults:
+
+| Tier | Sizes (room floor, width × depth) | Height |
+|---|---|---|
+| 1 | 3×3 (free) → 5×5 → 7×7 | 4 |
+| 2 | 11×11 (a move) → 13×13 → 15×15 | 6 |
+| 3 | 19×19 (a move) → 21×21 → 23×23 | 8 |
+
+The prices are placeholders, like `ranks.yml`'s: set them before players arrive. Settle the sizes before you build, because plots are built for a tier's largest room.
+
+1. **Build a cell block for each tier:** a mass of solid blocks (e.g. stone bricks; nothing that falls, like sand or gravel) on a floor, with a corridor along the front for players to walk in. Each cell needs a **plot** inside it: a solid box big enough for the tier's largest room plus the front wall. With the default sizes:
+   - tier 1: 7 wide, 8 deep (7 plus the front wall), 4 tall
+   - tier 2: 15 wide, 16 deep, 6 tall
+   - tier 3: 23 wide, 24 deep, 8 tall
+
+   Keep at least one block of solid wall around every plot (sides, back and top) and a floor under it: that's what stays between neighbors.
+2. **Register the plot.** Select exactly the plot with `//wand`, then:
+   ```
+   /thebox cell create 1 c1
+   ```
+   The selection must be completely solid. TheBox remembers its most common block as the wall block, to rebuild the cell with later.
+3. **Set the front space.** Select the empty space right in front of the plot, where the cell's entrance will be: the strip of corridor the owner may decorate (1 to 3 blocks deep), within the plot's width and height. Start it at the plot's bottom layer, so the entrance is level with the room's floor. Then:
+   ```
+   /thebox cell setfront c1
+   ```
+   TheBox works out which side is the front, carves the starting room behind the front wall, and creates two WorldGuard regions: `thebox_cell_c1` (the room) and `thebox_cell_c1_front` (the front space plus the front wall). If a player is waiting for a cell, they get this one right away.
+4. Repeat for every cell. Build a few more tier 1 cells than you have players, since everyone gets one. `/thebox cell list` shows them all.
+5. **Unlock the sizes by rank.** Size 1 is free; each later size needs `thebox.cell.size.<n>`, counted across all tiers. On the default schedule, a size every third rank:
+   ```
+   lp group d permission set thebox.cell.size.2 true
+   lp group g permission set thebox.cell.size.3 true
+   lp group j permission set thebox.cell.size.4 true
+   lp group m permission set thebox.cell.size.5 true
+   lp group p permission set thebox.cell.size.6 true
+   lp group s permission set thebox.cell.size.7 true
+   lp group v permission set thebox.cell.size.8 true
+   lp group y permission set thebox.cell.size.9 true
+   ```
+
+**Doors:** owners (and their helpers) can build in the front space and the front wall, e.g. an iron door with a button. WorldGuard stops everyone else using doors, buttons, levers and pressure plates in a region, so only they can open it. **Never set `use allow` on `__global__`:** its flags also apply inside regions that don't set them, so it would open every cell door. If spawn needs doors anyone can use, set `use allow` on the spawn region only.
+
+**How it works for players:**
+- `/cell` goes to their cell. `/cell visit <player>` goes to the front of someone else's (they have to be let in).
+- `/cell upgrade` opens a menu with the next size and its price. Within a tier, the room grows in place: the walls are carved back, sideways and away from the front, so the front wall and its door never move.
+- Moving up a tier gives them a new cell in the next tier's block. They keep the old one for 7 days to carry their things over (`/cell old`); shulker boxes keep their contents when broken. On `/cell release`, or when time's up, whatever's left goes to their impound (`/cell claim`), and the old cell is rebuilt as a starting room for the next player.
+- `/cell trust <player>` lets a friend build and open the door.
+- Hostile mobs don't spawn in cells. Players can make QuickShop shops in their cell, like in a stall.
+
+**Settings** in `cells.yml`: `move-days` (7), `max-helpers` (2), and `day-length-minutes` (1440). **For testing**, set `day-length-minutes` to e.g. 2, so a move's 7 "days" pass in 14 minutes. Set it back to 1440 for real use.
+
+**Admin tools:** `/thebox cell evict c1` clears a cell into its owner's impound and frees it. `delete` forgets a free cell (its blocks stay). `/thebox cell wipe` clears every cell for a new season: nothing goes to the impound.
+
+## 12. Prestige rewards
 
 > Needs PlayerParticles. The version TheBox is tested with (8.13) lists Minecraft up to 26.2, so check it enables on 26.3 (`/plugins` shows it green).
 
@@ -395,7 +456,7 @@ lp group p3 permission set playerparticles.style.wings true
 
 Players pick their particles with `/pp`.
 
-## 12. Food
+## 13. Food
 
 Mining all day uses up hunger fast. Two EssentialsX features cover it, with no TheBox setup needed:
 
@@ -420,17 +481,54 @@ lp group m permission set essentials.feed true
 ```
 Its cooldown is `heal-cooldown` in `plugins/Essentials/config.yml` (default 60 seconds, shared with `/heal`).
 
-## 13. Check that it works
+## 14. Check that it works
 
 As a **non-op** player:
 1. Join, then in the console run `lp user <name> info`. The player should be in groups `default` and `a`. `/balance`, `/baltop` and `/pay` work.
 2. Breaking or placing blocks outside a mine is blocked (WorldGuard says so in chat).
 3. `/mines` lists the unlocked mines; `/mines quarry` teleports there. Breaking blocks in the mine works; placing them doesn't. PvP works in every mine except the starter mine, and nowhere else. After hitting another player, `/mines` is blocked for 15 seconds, and logging out in that time kills you.
+   - PvP levels need two non-op players a mine apart. In the lower player's mine, neither can hit the other (melee, arrows, or a splash or lingering potion of poison); the attacker sees "You can only fight players at your own level in this mine." Afterwards `/mines` still works for both: a blocked hit must not combat-tag anyone.
 4. Mine some blocks, then run `/sell all` (or `/sell hand`, `/sell worth`).
 5. `/ranks` shows the ladder with the player's rank marked and the next rank's cost. `/rankup` buys the next rank (`/rankup max` buys as many as you can afford). The whole server sees an announcement.
 6. Walking into a locked mine is blocked with "You haven't unlocked … yet."
 7. At the top rank, `/prestige` explains what prestiging does, and `/prestige confirm` does it: the player goes back to `a`, joins `p1`, and the server sees an announcement.
 8. `/market`, stand in a free stall, `/market rent`. Building works in your stall and nowhere else in the market. With `day-length-minutes: 2` and auto-renew off, the stall freezes after 2 minutes; after the grace period its contents show up in `/market claim`.
+9. A new player gets a cell when they join, and `/cell` takes them there. Building works in the room and the front space, not in the walls. With `thebox.cell.size.2`, `/cell upgrade` carves the room bigger and leaves what's in it alone. An iron door with a button in the front: another non-op player can't press the button.
+
+## 15. Special events
+
+Mines that are only open for a while. They're ordinary mines (section 9), except that their permission is **temporary**: LuckPerms' `settemp` grants a permission that removes itself when it runs out ([permission commands](https://luckperms.net/wiki/Permission-Commands)).
+
+Build them like any other mine (section 9), with three differences:
+- Skip step 10: don't give the mine to a rank. The commands below grant access.
+- Step 11: leave the level at 0 for no PvP, or give it a band's level if you want PvP there.
+- Give it a short reset time, e.g. `/thebox mine setresettime halloween 300`. When time runs out, players already inside aren't removed. A reset lifts everyone onto the top of the mine, though, and players whose time is up can't go back in.
+
+### Event mines: open for a date range
+
+Open it for everyone. Every player is in `default`, including anyone who joins during the event:
+```
+lp group default permission settemp thebox.mine.halloween true 14d
+```
+`14d` means two weeks from now; durations combine, like `3d12h`. To close it at a fixed time instead, give a Unix timestamp. On Linux, `date -d '2026-11-30 23:59' +%s` prints one:
+```
+lp group default permission settemp thebox.mine.halloween true <timestamp>
+```
+- LuckPerms has no start date: run the command when the event begins.
+- While it's open, the mine is listed in `/mines`; afterwards it disappears from the list.
+- To end it early: `lp group default permission unsettemp thebox.mine.halloween`.
+
+### Lootbox mine: short visits
+
+Give one player a visit, e.g. as a reward:
+```
+lp user <name> permission settemp thebox.mine.loot true 10m
+```
+- To add time to a visit that's still running, put `accumulate` after the duration: `… true 10m accumulate`.
+- To open it for everyone for a short event, use `lp group default …` as above.
+- Special items aren't built yet: for now the lootbox mine drops its blocks like any other mine.
+
+Test as a non-op player: ops can enter every mine.
 
 ## Network (later)
 

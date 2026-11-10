@@ -11,7 +11,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.ItemType;
 import tech.shulker.thebox.menu.Menu;
 
-/** The /market claim chest menu: a player's impounded items, 45 per page. Clicking one takes it. */
+/** The /market claim (and /cell claim) chest menu: a player's impounded items, 45 per page. Clicking one takes it. */
 public class ImpoundMenu {
 
     private static final int PAGE_SIZE = 45; // five rows of items, plus a row of buttons
@@ -37,7 +37,7 @@ public class ImpoundMenu {
                 clicker -> open(clicker, market, current - 1));
         }
         menu.setItem(49, Menu.icon(ItemType.PAPER, Component.text("Your impound", NamedTextColor.GOLD), List.of(
-            Component.text("Things from a market stall you lost or gave up.", NamedTextColor.GRAY),
+            Component.text("Things from a market stall or cell you lost or gave up.", NamedTextColor.GRAY),
             Component.text("Click an item to take it.", NamedTextColor.GRAY),
             Component.text("Unclaimed items are sold after " + market.getImpoundExpiryDays() + " days.", NamedTextColor.GRAY))));
         if (current < pages - 1) {

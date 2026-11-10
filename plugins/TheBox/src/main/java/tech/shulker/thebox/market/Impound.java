@@ -23,7 +23,7 @@ import tech.shulker.thebox.sell.PriceManager;
 import tech.shulker.thebox.sell.VaultEconomy;
 
 /**
- * Items taken out of cleared stalls, kept per player until they claim them (/market claim).
+ * Items taken out of cleared stalls and cells, kept per player until they claim them (/market claim or /cell claim).
  * Unclaimed items are eventually sold at market value (see {@link #expire}).
  *
  * Items are stored with Paper's ItemStack#serializeAsBytes, which keeps everything about an item

@@ -39,6 +39,9 @@ public class Mine {
     /** Reset once this percentage of the mine has been mined; 0 means off. */
     private int resetPercent = 0;
 
+    /** PvP level: players only fight in mines at their own level (the highest level among mines they can enter). 0 means not set, so no PvP. */
+    private int level = 0;
+
     /** Blocks broken inside the mine since its last reset. Kept in memory only. */
     private long blocksMined = 0;
 
@@ -143,6 +146,9 @@ public class Mine {
 
     public int getResetPercent() { return resetPercent; }
     public void setResetPercent(int percent) { this.resetPercent = percent; }
+
+    public int getLevel() { return level; }
+    public void setLevel(int level) { this.level = level; }
 
     public long getVolume() {
         return (long) (maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1);

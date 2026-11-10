@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-package tech.shulker.thebox.market;
+package tech.shulker.thebox.regions;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -23,9 +23,10 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.ItemType;
 import org.bukkit.util.BoundingBox;
+import tech.shulker.thebox.market.ShopHook;
 
 /**
- * Empties a stall and returns everything that was in it as items, for the impound.
+ * Empties a box (a market stall, a cell) and returns everything that was in it as items, for the impound.
  *
  * Order matters, so nothing is lost and nothing is duplicated:
  * 1. Entities (item frames, armor stands, paintings, dropped items) become items and are removed first,
@@ -35,7 +36,7 @@ import org.bukkit.util.BoundingBox;
  *    then the block itself becomes the item it would drop when mined with Silk Touch.
  * 3. Only then are the blocks set to air, without physics, so nothing attached drops as a loose item.
  */
-public class StallClearer {
+public class RegionClearer {
 
     /** Silk Touch makes blocks drop themselves (glass, ores, ...). Netherite mines everything a player can. */
     private static final ItemStack SILK_TOUCH_PICKAXE = createSilkTouchPickaxe();
@@ -46,19 +47,18 @@ public class StallClearer {
         return pickaxe;
     }
 
-    /** Clears the stall. Returns its contents, or an empty list if the stall's world isn't loaded. */
-    public static List<ItemStack> clear(Stall stall, ShopHook shops) {
-        World world = stall.getWorld();
+    /** Clears the box. Returns its contents, or an empty list if the world isn't loaded (null). */
+    public static List<ItemStack> clear(World world, Box area, ShopHook shops) {
         if (world == null) {
             return Collections.emptyList();
         }
         List<ItemStack> items = new ArrayList<>();
 
-        // 1. Entities inside the stall. Other entities (mobs, minecarts, ...) are left alone.
-        BoundingBox box = new BoundingBox(stall.getMinX(), stall.getMinY(), stall.getMinZ(),
-            stall.getMaxX() + 1, stall.getMaxY() + 1, stall.getMaxZ() + 1);
-        for (Entity entity : world.getNearbyEntities(box)) {
-            if (!stall.contains(entity.getLocation())) {
+        // 1. Entities inside the box. Other entities (mobs, minecarts, ...) are left alone.
+        BoundingBox bounds = new BoundingBox(area.minX(), area.minY(), area.minZ(),
+            area.maxX() + 1, area.maxY() + 1, area.maxZ() + 1);
+        for (Entity entity : world.getNearbyEntities(bounds)) {
+            if (!area.contains(entity.getLocation())) {
                 continue;
             }
             if (entity instanceof Item dropped) {
@@ -83,9 +83,9 @@ public class StallClearer {
 
         // 2. Collect every block before removing any.
         List<Block> toClear = new ArrayList<>();
-        for (int x = stall.getMinX(); x <= stall.getMaxX(); x++) {
-            for (int y = stall.getMinY(); y <= stall.getMaxY(); y++) {
-                for (int z = stall.getMinZ(); z <= stall.getMaxZ(); z++) {
+        for (int x = area.minX(); x <= area.maxX(); x++) {
+            for (int y = area.minY(); y <= area.maxY(); y++) {
+                for (int z = area.minZ(); z <= area.maxZ(); z++) {
                     Block block = world.getBlockAt(x, y, z);
                     if (block.isEmpty()) {
                         continue;

@@ -10,6 +10,7 @@ import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.regions.CuboidRegion;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -24,15 +25,22 @@ import org.bukkit.World;
 import org.bukkit.block.BlockType;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.AreaEffectCloud;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.entity.AreaEffectCloudApplyEvent;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.PotionSplashEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 import tech.shulker.thebox.utils.SavedLocation;
 
 /** Owns all mines: storage in mines.yml, resetting, and the automatic-reset timer. */
@@ -71,6 +79,27 @@ public class MineManager implements Listener {
 
     public Mine get(String id) {
         return mines.get(id);
+    }
+
+    /** The mine containing this location, or null if it's in none. */
+    public Mine getMineAt(Location location) {
+        for (Mine mine : mines.values()) {
+            if (mine.contains(location)) {
+                return mine;
+            }
+        }
+        return null;
+    }
+
+    /** A player's PvP level: the highest level among the mines they can enter (0 if none of them has a level). */
+    public int levelOf(Player player) {
+        int level = 0;
+        for (Mine mine : mines.values()) {
+            if (mine.getLevel() > level && player.hasPermission(mine.getPermission())) {
+                level = mine.getLevel();
+            }
+        }
+        return level;
     }
 
     public void add(Mine mine) {
@@ -231,6 +260,83 @@ public class MineManager implements Listener {
         onMove(event);
     }
 
+    // ---------------------------------------------------------------- PvP in mines
+
+    /**
+     * The mine in which the PvP rule stops this attacker hurting this victim, or null if it doesn't. Inside a mine,
+     * PvP only happens between players at the mine's level; level 0 means no PvP (see design.md, PvP). The rule only
+     * ever takes PvP away: WorldGuard separately decides where PvP is possible at all.
+     */
+    private Mine blockingMine(Player attacker, Player victim) {
+        if (attacker == victim) {
+            return null; // hurting yourself (your own arrow or potion) works as in vanilla
+        }
+        Mine mine = getMineAt(victim.getLocation());
+        if (mine == null) {
+            return null; // outside mines, WorldGuard's rules are all there is
+        }
+        int level = mine.getLevel();
+        return level == 0 || levelOf(attacker) != level || levelOf(victim) != level ? mine : null;
+    }
+
+    /** Hits: melee, arrows, tridents, splash potions of harming. */
+    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
+    public void onPlayerDamage(EntityDamageByEntityEvent event) {
+        if (!(event.getEntity() instanceof Player victim)
+                || !(event.getDamageSource().getCausingEntity() instanceof Player attacker)) {
+            return;
+        }
+        Mine mine = blockingMine(attacker, victim);
+        if (mine != null) {
+            event.setCancelled(true);
+            attacker.sendActionBar(MiniMessage.miniMessage().deserialize(mine.getLevel() == 0
+                ? "<red>There's no PvP in this mine."
+                : "<red>You can only fight players at your own level in this mine."));
+        }
+    }
+
+    /** Splash potions with a harmful effect (poison, weakness, …), which never fire a damage event: protected players aren't affected. */
+    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
+    public void onPotionSplash(PotionSplashEvent event) {
+        if (!(event.getPotion().getShooter() instanceof Player attacker) || !hasHarmfulEffect(event.getPotion().getEffects())) {
+            return;
+        }
+        for (LivingEntity entity : event.getAffectedEntities()) {
+            if (entity instanceof Player victim && blockingMine(attacker, victim) != null) {
+                event.setIntensity(victim, 0);
+            }
+        }
+    }
+
+    /** Lingering potion clouds, checked each time they apply (every 5 ticks), the same way as splash potions. */
+    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
+    public void onLingeringCloud(AreaEffectCloudApplyEvent event) {
+        AreaEffectCloud cloud = event.getEntity();
+        if (!(cloud.getSource() instanceof Player attacker)) {
+            return;
+        }
+        List<PotionEffect> effects = new ArrayList<>();
+        if (cloud.getBasePotionType() != null) {
+            effects.addAll(cloud.getBasePotionType().getPotionEffects());
+        }
+        if (cloud.hasCustomEffects()) {
+            effects.addAll(cloud.getCustomEffects());
+        }
+        if (hasHarmfulEffect(effects)) {
+            event.getAffectedEntities().removeIf(entity ->
+                entity instanceof Player victim && blockingMine(attacker, victim) != null);
+        }
+    }
+
+    private static boolean hasHarmfulEffect(Collection<PotionEffect> effects) {
+        for (PotionEffect effect : effects) {
+            if (effect.getType().getEffectCategory() == PotionEffectType.Category.HARMFUL) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // ---------------------------------------------------------------- storage
 
     /** (Re)loads all mines from mines.yml. A missing file just means no mines yet. */
@@ -284,6 +390,7 @@ public class MineManager implements Listener {
             mine.setCustomTeleport(teleport != null ? teleport.toLocation() : m.getLocation("teleport"));
             mine.setResetIntervalSeconds(m.getInt("reset-interval-seconds", 0));
             mine.setResetPercent(Math.max(0, Math.min(100, m.getInt("reset-percent", 0))));
+            mine.setLevel(Math.max(0, m.getInt("level", 0)));
             mine.setDisplayName(m.getString("display-name"));
             mines.put(id, mine);
         }
@@ -310,6 +417,7 @@ public class MineManager implements Listener {
                 yaml.set(path + "blocks." + type.key().asString(), weight));
             yaml.set(path + "reset-interval-seconds", mine.getResetIntervalSeconds());
             yaml.set(path + "reset-percent", mine.getResetPercent());
+            yaml.set(path + "level", mine.getLevel());
             if (mine.hasDisplayName()) {
                 yaml.set(path + "display-name", mine.getDisplayName());
             }

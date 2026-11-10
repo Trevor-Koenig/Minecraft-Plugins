@@ -84,6 +84,10 @@ public class MineCommand {
                 .then(mineArgument()
                     .then(Commands.argument("percent", IntegerArgumentType.integer(0, 100))
                         .executes(this::setResetPercent))))
+            .then(Commands.literal("setlevel")
+                .then(mineArgument()
+                    .then(Commands.argument("level", IntegerArgumentType.integer(0))
+                        .executes(this::setLevel))))
             .then(Commands.literal("settp")
                 .then(mineArgument().executes(this::setTeleport)))
             .then(Commands.literal("reload")
@@ -128,6 +132,7 @@ public class MineCommand {
             <yellow>/thebox mine setresettime \\<mine> \\<seconds></yellow> <gray>- automatic reset interval (0 = off)</gray>
             <yellow>/thebox mine setname \\<mine> \\<name></yellow> <gray>- the name players see (MiniMessage, e.g. \\<gold>Gold Rush)</gray>
             <yellow>/thebox mine setresetpercent \\<mine> \\<percent></yellow> <gray>- reset (after a 10-second countdown) once this % is mined (0 = off)</gray>
+            <yellow>/thebox mine setlevel \\<mine> \\<level></yellow> <gray>- PvP level: players only fight in mines at their own level (0 = no PvP)</gray>
             <yellow>/thebox mine settp \\<mine></yellow> <gray>- set the teleport point to where you stand</gray>
             <yellow>/thebox mine delete \\<mine></yellow> <gray>- delete a mine (blocks stay)</gray>
             <yellow>/thebox mine reload</yellow> <gray>- re-read mines.yml</gray>""");
@@ -186,7 +191,8 @@ public class MineCommand {
                 + ", blocks: " + describeBlocks(mine) + ", reset: " + reset
                 + (mine.getResetPercent() > 0
                     ? ", or at " + mine.getResetPercent() + "% mined (now " + mine.getPercentMined() + "%)"
-                    : ""));
+                    : "")
+                + ", level: " + (mine.getLevel() > 0 ? String.valueOf(mine.getLevel()) : "not set (no PvP)"));
         }
         return Command.SINGLE_SUCCESS;
     }
@@ -253,6 +259,19 @@ public class MineCommand {
         String message = percent == 0
             ? "<green>Mine <white>" + mine.getId() + "</white> no longer resets based on how much is mined."
             : "<green>Mine <white>" + mine.getId() + "</white> will reset once " + percent + "% has been mined.";
+        ctx.getSource().getSender().sendRichMessage(message);
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private int setLevel(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        Mine mine = getMine(ctx);
+        int level = IntegerArgumentType.getInteger(ctx, "level");
+        mine.setLevel(level);
+        mines.save();
+        String message = level == 0
+            ? "<green>Mine <white>" + mine.getId() + "</white> has no level now, so there's no PvP in it."
+            : "<green>Mine <white>" + mine.getId() + "</white> is now level " + level
+                + ". Players fight there only if " + level + " is the highest level among the mines they can enter.";
         ctx.getSource().getSender().sendRichMessage(message);
         return Command.SINGLE_SUCCESS;
     }

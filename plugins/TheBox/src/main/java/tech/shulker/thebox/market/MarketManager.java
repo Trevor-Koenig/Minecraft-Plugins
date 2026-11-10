@@ -1,14 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package tech.shulker.thebox.market;
 
-import com.sk89q.worldedit.bukkit.BukkitAdapter;
-import com.sk89q.worldedit.math.BlockVector3;
-import com.sk89q.worldguard.WorldGuard;
-import com.sk89q.worldguard.domains.DefaultDomain;
-import com.sk89q.worldguard.protection.managers.RegionManager;
-import com.sk89q.worldguard.protection.managers.storage.StorageException;
-import com.sk89q.worldguard.protection.regions.ProtectedCuboidRegion;
-import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -22,7 +14,6 @@ import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Location;
 import org.bukkit.OfflinePlayer;
-import org.bukkit.World;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
@@ -31,6 +22,9 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
+import tech.shulker.thebox.regions.Box;
+import tech.shulker.thebox.regions.RegionClearer;
+import tech.shulker.thebox.regions.Regions;
 import tech.shulker.thebox.sell.PriceManager;
 import tech.shulker.thebox.sell.VaultEconomy;
 import tech.shulker.thebox.utils.Durations;
@@ -70,6 +64,8 @@ public class MarketManager implements Listener {
     }
 
     public void setShopHook(ShopHook shops) { this.shops = shops; }
+    /** The shop plugin hook (cells use it too, to remove shops when a cell is cleared). */
+    public ShopHook getShopHook() { return shops; }
     public Impound getImpound() { return impound; }
     public int getMaxPrepayDays() { return maxPrepayDays; }
     public int getGraceDays() { return graceDays; }
@@ -193,7 +189,7 @@ public class MarketManager implements Listener {
             return -1;
         }
         UUID renter = stall.getRenter();
-        List<ItemStack> items = StallClearer.clear(stall, shops);
+        List<ItemStack> items = RegionClearer.clear(stall.getWorld(), boxOf(stall), shops);
         if (renter != null && !items.isEmpty()) {
             impound.add(renter, items);
         }
@@ -205,53 +201,25 @@ public class MarketManager implements Listener {
 
     // ---------------------------------------------------------------- WorldGuard
 
-    private RegionManager regionManager(Stall stall) {
-        World world = stall.getWorld();
-        return world == null ? null
-            : WorldGuard.getInstance().getPlatform().getRegionContainer().get(BukkitAdapter.adapt(world));
+    private static Box boxOf(Stall stall) {
+        return new Box(stall.getMinX(), stall.getMinY(), stall.getMinZ(), stall.getMaxX(), stall.getMaxY(), stall.getMaxZ());
     }
 
     /**
-     * Makes the stall's WorldGuard region match the stall: creates it if it's missing (say, someone deleted
-     * it with /rg remove), and sets its members to the renter and helpers, or to nobody while the stall is
-     * free or frozen. Non-members can't build in a region, so this is what decides who can build.
+     * Makes the stall's WorldGuard region match the stall (see Regions.sync): its members are the renter and
+     * helpers, or nobody while the stall is free or frozen.
      */
     void syncRegion(Stall stall) {
-        RegionManager manager = regionManager(stall);
-        if (manager == null) {
-            return; // the world isn't loaded; this runs again on the next change or reload
-        }
-        ProtectedRegion region = manager.getRegion(stall.getRegionId());
-        if (region == null) {
-            region = new ProtectedCuboidRegion(stall.getRegionId(),
-                BlockVector3.at(stall.getMinX(), stall.getMinY(), stall.getMinZ()),
-                BlockVector3.at(stall.getMaxX(), stall.getMaxY(), stall.getMaxZ()));
-            region.setPriority(REGION_PRIORITY);
-            manager.addRegion(region);
-        }
-        DefaultDomain members = region.getMembers();
-        members.removeAll();
+        List<UUID> members = new ArrayList<>();
         if (stall.isRented() && !stall.isFrozen()) {
-            members.addPlayer(stall.getRenter());
-            stall.getHelpers().forEach(members::addPlayer);
+            members.add(stall.getRenter());
+            members.addAll(stall.getHelpers());
         }
-        saveRegions(manager);
+        Regions.sync(plugin.getLogger(), stall.getWorld(), stall.getRegionId(), boxOf(stall), REGION_PRIORITY, members, null);
     }
 
     private void removeRegion(Stall stall) {
-        RegionManager manager = regionManager(stall);
-        if (manager != null) {
-            manager.removeRegion(stall.getRegionId());
-            saveRegions(manager);
-        }
-    }
-
-    private void saveRegions(RegionManager manager) {
-        try {
-            manager.saveChanges();
-        } catch (StorageException e) {
-            plugin.getLogger().severe("Could not save WorldGuard regions: " + e.getMessage());
-        }
+        Regions.remove(plugin.getLogger(), stall.getWorld(), stall.getRegionId());
     }
 
     // ---------------------------------------------------------------- rent timer
