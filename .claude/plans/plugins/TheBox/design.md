@@ -2,7 +2,7 @@
 
 Status: **draft**. A living document, updated as decisions are made.
 
-The admin setup guide is [plugins/TheBox/SETUP.md](../../../../plugins/TheBox/SETUP.md). Update it whenever commands, permissions or setup steps change.
+The admin setup guide is [plugins/TheBox/README.md](../../../../plugins/TheBox/README.md). Update it whenever commands, permissions or setup steps change.
 
 ## 1. Goals
 - Deliver a classic prison-server experience first: mine → sell → rank up → prestige.
@@ -65,8 +65,9 @@ A player-run market area where players buy or rent **stalls**, build their store
 
 ### Cell
 A player's own personal space, a classic prison feature. **Redesigned 2026-11-09**; what changed from the 2026-11-08 design is at the end of this section.
-- **Cell blocks are built by hand, and each cell is defined like a stall.** The admin builds each tier's cell block as solid blocks. For each cell they select its **plot** (the solid space for the tier's largest room, plus the front wall) and run `/thebox cell create <tier> <cell>`, then select its **front space** and run `/thebox cell setfront <cell>`. TheBox carves the starting room.
+- **Cell blocks are built by hand, and each cell is defined like a stall.** The admin builds each tier's cell block as solid blocks. For each cell they stand in front of it and run `/thebox cell create <tier> <cell> here`: TheBox works out the **plot** (the solid space for the tier's largest room, plus the front wall) and the **front space** from where they stand, and carves the starting room. For unusual shapes they can select the plot (`create` without `here`) and then the front space (`setfront <cell>`) instead.
 - **Front space:** an empty strip in front of the cell, touching one face of the plot; that face becomes the front wall. The owner can build in the front space and the front wall, e.g. an iron door with a button. Visitors arrive here.
+- **Tier fronts** *(decided 2026-11-10)*: each tier has a default front (door, window, buttons), designed once on one cell by the admin and put back every time a cell is rebuilt. Owners can change it; only what they add goes to their impound.
 - **Growth:** within a tier, an upgrade carves the next size **away from the front** (sideways, backwards and up), so the front wall and door never move. Solid space that isn't carved yet stays outside the cell's WorldGuard region, so nobody can dig themselves a free upgrade.
 - **Sizes and prices** per tier in `cells.yml` (width × depth × height). Defaults:
 
@@ -92,7 +93,7 @@ A player's own personal space, a classic prison feature. **Redesigned 2026-11-09
 - **Only in your own mine** *(planned 2026-11-08; testers worried that higher-rank players would come down to lower mines to kill weaker ones)*. Inside a mine, PvP only happens between players whose level equals the mine's level (see Mine `level`). Decided 2026-11-08:
   - **Rules use levels, not single mines,** so several mines can share a level with no special case.
   - **A mine with level 0 (not set) has no PvP,** because it's nobody's level. Forgetting a level makes a mine peaceful, not a place for ganking. After deploying, PvP is off in every mine until its level is set.
-  - **WorldGuard decides where PvP can happen; TheBox only removes it.** WorldGuard checks the `pvp` flag at *both* the victim's and the attacker's location (verified in its `RegionProtectionListener`), so a hit only lands when both stand in a `pvp allow` region. TheBox finds the mine from its own cuboid at the victim's location. The two match because SETUP.md creates each `mine_<id>` region from the same selection. **If a mine's WorldGuard region is ever bigger than the mine, the extra strip has PvP without the level rule.** For now, keep them identical and warn about it in `SETUP.md`; the lasting fix is the M1 follow-up idea of `/thebox mine create` making the region itself.
+  - **WorldGuard decides where PvP can happen; TheBox only removes it.** WorldGuard checks the `pvp` flag at *both* the victim's and the attacker's location (verified in its `RegionProtectionListener`), so a hit only lands when both stand in a `pvp allow` region. TheBox finds the mine from its own cuboid at the victim's location. The two match because README.md creates each `mine_<id>` region from the same selection. **If a mine's WorldGuard region is ever bigger than the mine, the extra strip has PvP without the level rule.** For now, keep them identical and warn about it in `README.md`; the lasting fix is the M1 follow-up idea of `/thebox mine create` making the region itself.
   - Considered and not chosen: comparing the two players' mine access (PvP only between players who can enter exactly the same mines), which needs no levels or configuration. Also checked, and ruled out: doing it without code. PvPManager's `pvpmanager.nopvp` was removed in v3.16, and WorldGuard region groups would need two regions per mine, kept in step with the ladder by hand.
 
   It works both ways: a higher-rank visitor can neither hit nor be hit there, so low-rank players can't harass someone who can't fight back. WorldGuard's `pvp` flag can't do this because it doesn't know ranks, so it's a TheBox listener.
@@ -110,7 +111,7 @@ Decided 2026-11-08: players use **chest menus** (clickable inventory GUIs) where
 Decided 2026-11-08: **TheBox formats chat itself** with Paper's chat API: `[P2] [C] Name: message` (prestige, rank; a gang tag if gangs return).
 
 ### Food
-Decided 2026-11-08: no TheBox code. For launch, EssentialsX covers it (setup in `SETUP.md`, "Food"):
+Decided 2026-11-08: no TheBox code. For launch, EssentialsX covers it (setup in `README.md`, "Food"):
 - A free food kit (`/kit food`) with a cooldown, granted to rank `a`.
 - `/feed` as a mid-ladder rank unlock (`essentials.feed`).
 
@@ -124,7 +125,7 @@ Planned 2026-11-08 (from the first player test): a store at spawn where players 
 - Chosen over a GUI: no code to maintain, players learn the shop interface they'll use in the market, and the world gets a landmark. An item that opens a GUI was ruled out because items drop on death in PvP mines. Revisit with a TheBox chest menu only if gear needs to be locked by rank.
 
 ### Seasons
-Agreed 2026-11-08: a new season resets all player progress. **A checklist in `SETUP.md` first, not a command:** most steps already have a tool, and a one-shot command that can't be undone is the riskiest thing to build. Automate the annoying parts after a season or two.
+Agreed 2026-11-08: a new season resets all player progress. **A checklist in `README.md` first, not a command:** most steps already have a tool, and a one-shot command that can't be undone is the riskiest thing to build. Automate the annoying parts after a season or two.
 1. Back up, with the server stopped: the world folder and `plugins/`.
 2. Ranks: `lp bulkupdate users delete "permission == group.b"`, one line per group `b`–`z` ([Bulk editing](https://luckperms.net/wiki/Bulk-Editing)). Console-only, with a confirmation code. TheBox puts players back in `a` at their next join.
 3. Balances: `eco reset ** 0` (`**` includes offline players; resets to `starting-balance`, the number is ignored). An [old bug report](https://github.com/EssentialsX/Essentials/issues/5305) says `**` failed on some builds, so check `/baltop` afterwards.
@@ -140,7 +141,7 @@ Agreed 2026-11-08: a new season resets all player progress. **A checklist in `SE
 Decided 2026-11-09, for a small server (3–10 players):
 - **A first run from A to Z takes about 100 hours of mining; A–C is a tutorial.** Time per rank-up: B 15 min, C 30 min, D 1 h, then 18 minutes more for each rank, up to 7.6 h for Z. Players reach M after about 24 hours and R after about 47. Cells add about 40 hours on top.
 - **Rank cost = hours for that rank × income per hour of the mine before it.** Measure each mine's income: mine for 5 minutes with realistic gear, `/sell all`, ×12. Aim for each mine to pay about 1.15× the one before. The placeholder costs in `ranks.yml` (+1000 per rank) don't follow this yet.
-- **Mines (planned):** one per rank (26), a wood mine, a lootbox mine, and event mines (setup in `SETUP.md`, section 15).
+- **Mines (planned):** one per rank (26), a wood mine, a lootbox mine, and event mines (setup in `README.md`, section 15).
   - PvP bands with mine levels: A–C no PvP; D–H level 1, I–M 2, N–R 3, S–W 4, X–Z 5.
   - Wood mine: logs, level 0, unlocked at `a`. Logs unpriced or very cheap, so it doesn't compete with the rank mines.
   - Lootbox mine: special-item drops are planned (an admin-set item list). Drops should check the player still has access when they break the block, since a player on top of the mine can break blocks below.
@@ -154,7 +155,7 @@ Decided 2026-11-09, for a small server (3–10 players):
 | Vault + an economy plugin (e.g. EssentialsX) | Balances: sell income, rank-up costs | `depend` (from M2: Selling) |
 | LuckPerms | The rank ladder (a track), each player's rank and prestige, and the permissions ranks grant | `depend` (from M3: Ranks) |
 | PlayerParticles | Cosmetic particle effects (wings, halo, …) unlocked by prestige, one permission per style | Runs alongside TheBox; no code dependency. Latest build lists up to 26.2, so check 26.3 support first |
-| WorldGuard | From launch: protects the world (`__global__` passthrough deny) and lets players break blocks in mines (a `mine_<id>` region per mine with `block-break allow`). Who may *enter* a mine stays TheBox's job (rank permissions). Setup in `SETUP.md`. | Runs alongside TheBox; no code dependency yet |
+| WorldGuard | From launch: protects the world (`__global__` passthrough deny) and lets players break blocks in mines (a `mine_<id>` region per mine with `block-break allow`). Who may *enter* a mine stays TheBox's job (rank permissions). Setup in `README.md`. | Runs alongside TheBox; no code dependency yet |
 | WorldGuard API | Rentable market stalls and cells: TheBox creates regions and adds renters/owners as members (stall plugins look unmaintained, see Market) | Code dependency (from M5) |
 | QuickShop-Hikari | Player chest shops in stalls (and maybe cells) | Runs alongside TheBox; probably no code dependency |
 | PvPManager | Combat tagging, combat-log handling | Runs alongside TheBox (from M4) |
@@ -234,7 +235,7 @@ All of M1 passed in-game testing on 2026-11-07.
   - **Percentage resets** start a 10-second countdown (10-second warning, then 3, 2, 1) instead of resetting on the next tick.
   - `/thebox mine reset` (admin) still resets immediately.
 - [ ] Watch reset performance on very large mines.
-- [ ] *(idea)* `/thebox mine create` also creates the mine's WorldGuard region (`mine_<id>`, `block-break allow`) through the WorldGuard API, so the two can't drift apart. Today it's a manual step in `SETUP.md`.
+- [ ] *(idea)* `/thebox mine create` also creates the mine's WorldGuard region (`mine_<id>`, `block-break allow`) through the WorldGuard API, so the two can't drift apart. Today it's a manual step in `README.md`.
 - Note: the % counter only counts player block breaks, not explosions, and it resets on server restart.
 
 ### M2: Selling
@@ -313,8 +314,8 @@ Steps 2, 5 and 6, implementation notes:
 
 ### M4: PvP in mines
 Mostly configuration: WorldGuard `pvp` flags plus PvPManager for combat tagging.
-- [x] WorldGuard PvP flags documented in `SETUP.md` (`__global__ pvp deny`, `pvp allow` in each mine region except the starter mine)
-- [x] PvPManager (4.0.30, Modrinth `eKgXGdO2`) chosen and documented in `SETUP.md`. Its defaults fit; verified in its config and source (2026-11-08): commands blocked in combat, kill on logout, `/pvp` toggle overridden in `pvp allow` regions. Must keep `Unsafe Teleports: false`, or it cancels TheBox's reset lift (a `PLUGIN` teleport) mid-fight. Turn off its auto-update.
+- [x] WorldGuard PvP flags documented in `README.md` (`__global__ pvp deny`, `pvp allow` in each mine region except the starter mine)
+- [x] PvPManager (4.0.30, Modrinth `eKgXGdO2`) chosen and documented in `README.md`. Its defaults fit; verified in its config and source (2026-11-08): commands blocked in combat, kill on logout, `/pvp` toggle overridden in `pvp allow` regions. Must keep `Unsafe Teleports: false`, or it cancels TheBox's reset lift (a `PLUGIN` teleport) mid-fight. Turn off its auto-update.
 - [ ] Add it to the test server (`downloadPlugins`) and check the action-bar placeholders without PlaceholderAPI.
 - [ ] Test: PvP in a mine, none at spawn or in the starter mine, items drop on death.
 
@@ -330,7 +331,7 @@ Steps (drafted 2026-11-08):
 - [x] 6. Rent timer: auto-renew from the balance, warnings, grace period (frozen stall), eviction
 - [x] 7. Impound: eviction and unrenting move container contents, blocks (as items) and item frames / armor stands into the player's impound (full item data kept), clear the stall, and `/market claim` opens it as a chest menu; auto-sell after 30 days
 - [x] 8. QuickShop-Hikari: shops only in your own stall, closed during the grace period, removed on eviction (through its API)
-- [x] 9. `SETUP.md`: market setup
+- [x] 9. `README.md`: market setup
 
 All built 2026-11-08 and tested in the first player test, 2026-11-08. Implementation notes:
 - **A stall is the empty space players build in.** `stall create` refuses a selection with blocks in it, so everything in a stall belongs to its renter; the floor and walls stay outside the region and stay protected. Stall regions get priority 10, so they win inside a surrounding market region.
@@ -352,35 +353,43 @@ Designed 2026-11-09 (see Cell above). Reuses the market's region code. Steps:
 - [x] 6. Upgrades: `/cell upgrade` and its chest menu. Requires `thebox.cell.size.<n>`, charges through Vault, carves the next size away from the front, widens the region
 - [x] 7. Tier moves: a free cell in the next tier and 7 days to move (`/cell old`); then `/cell release` or expiry clears the old cell into the impound and resets it (refill with the tier's wall block, carve the starting room)
 - [x] 8. `/thebox cell wipe` for new seasons: resets every cell, no impound
-- [x] 9. `SETUP.md`: building cell blocks, defining cells, granting size unlocks, the `use allow` warning *(section 11; test in section 14)*
+- [x] 9. `README.md`: building cell blocks, defining cells, granting size unlocks, the `use allow` warning *(section 11; test in section 14)*
 
 All built 2026-11-09; **untested in-game**. Implementation notes:
 - **Package `cells`:** `Cell` (geometry: room, front region, home and visit points), `CellTier`, `CellManager` (storage, carving, regions, moves, timer, join), `CellCommand` and `CellMenu` (players), `CellAdminCommand`.
 - **Two WorldGuard regions per cell**, `thebox_cell_<id>` (the room at its current size) and `thebox_cell_<id>_front` (front space plus the front wall), both priority 10 with `mob-spawning deny`. A region's corners can't change, so an upgrade replaces the room region with a bigger one that copies the old one's settings (`ProtectedRegion#copyFrom`).
 - **The plot must be completely solid** at `create`; its most common block becomes the cell's wall block (`wall-block` in `cells.yml`), used to rebuild it. The front space must be empty, against one side of the plot, within its width and height; `setfront` also checks the plot fits the tier's largest room from that side.
+- **`create <tier> <cell> here`** *(added 2026-11-10, untested)*: the shortcut for defining a cell without selections. The admin stands on the floor in front of the wall, facing it (`Entity#getFacing()`, the nearest compass direction), at most 3 blocks away. The plot starts at the first block ahead, is centered on them, starts at their feet, and is the tier's largest room plus the front wall. The front space is the air from the wall back to where they stand, as wide and tall as the plot (full height, so the owner can redo the whole front wall). All checks run before anything changes.
+- **A block of wall between cells** *(added 2026-11-10)*: a plot may not touch another cell's plot or front space, and a front space may not touch another cell's plot, because a room at its largest fills its plot and would open into the neighbor. Front spaces may touch each other.
+- **`delete` fills the plot back in** *(changed 2026-11-10)* with the wall block and empties the front space, after sending anyone inside out to the front space, so the plot is solid again: an undo for a misplaced cell, and it can be created again.
 - **Carving** only removes blocks in the new room that weren't in the old one, without physics, so nothing the owner built is touched. Things hung on an old wall (torches, signs) are left floating until a neighboring block changes, then drop as items.
-- **Rebuilding** (release, evict, wipe): players in the room are first teleported to the front space, the room and front region are cleared (into the impound, except for a wipe), then the whole plot is filled with the wall block and the starting room carved. The front wall's blocks go to the impound too; harmless, since owners can break their own front wall anyway.
+- **Rebuilding** (release, evict, wipe): players in the room are first teleported to the front space, the room and front region are cleared (into the impound, except for a wipe), then the whole plot is filled with the wall block, the front space emptied, the starting room carved and the tier's front put on.
+- **Tier fronts** *(added 2026-11-10, untested)*: `/thebox cell savefront <cell>` saves a free cell's front as its tier's front (`tiers.<n>.front` in `cells.yml`). That's every block that differs from a plain cell in the front wall (from the wall block), the front space and the starting room's first layer (from air), e.g. an iron door, an iron-bars window and buttons on both sides. It's put on every free cell of the tier at once, and on every cell at each rebuild.
+  - Each block is stored as `BlockData#getAsString` text, relative to the starting room and turned as if the front faced north. `BlockData#rotate(StructureRotation)` turns it to each cell's direction: the four directions are the same layout turned, never mirrored, so door hinges stay right.
+  - Save checks: doors, windows and gaps (anything not occluding) in the front wall must be in front of the starting room; blocks with a tile entity (signs, banners, heads, containers) are refused, because only the block is saved, not its contents.
+  - When a cell is cleared, the parts of its front still as TheBox put them (matched by block type, so an open door still counts) are removed first, so they don't go to the impound. That also stopped the front wall's plain wall blocks being impounded.
+  - Accepted leak: an owner who breaks the default door, button or window keeps it, and the next rebuild puts a new one in. At most one front's worth per cell they own. Could be closed later by making the front's own blocks drop nothing.
 - **Sizes are numbered across tiers** (`thebox.cell.size.<n>`, n = 2–9 by default). Sizes that shrink in `cells.yml` are raised to match the size before. Default prices are placeholders (about n × 1000; tier moves double).
 - **QuickShop shops are possible in cells** (QuickShop allows them wherever the player can build), and are removed when a cell is cleared. Whether cell shops should exist is still the open question below.
 - Later: the cell shop and more-helpers upgrades. Shops in cells? QuickShop allows a shop wherever the player can build, so once cells exist, shops could appear in cells too. If shops should stay in the market, TheBox's QuickShop hook can cancel `ShopCreateEvent` outside stalls.
 
 ### Second pass *(after the first player test, 2026-11-08)*
 Testers found it rough around the edges, mostly because the world wasn't built yet and was still being configured during play. Suggested order:
-- [ ] 1. Build the world properly, including the starter gear store (configuration only; see Starter gear store). `SETUP.md`: a store section.
+- [ ] 1. Build the world properly, including the starter gear store (configuration only; see Starter gear store). `README.md`: a store section.
 - [ ] 2. PvP only in your own mine (see PvP):
   - [x] 2.1 Mine `level`, set with `/thebox mine setlevel <mine> <level>` and saved in `mines.yml`; shown in `/thebox mine list` *(built 2026-11-08, untested)*
   - [x] 2.2 Damage listener: get the attacker with `event.getDamageSource().getCausingEntity()` ([DamageSource](https://jd.papermc.io/paper/org/bukkit/damage/DamageSource.html)), so arrows and tridents count as their shooter. `MineManager.onPlayerDamage` with helpers `getMineAt` and `levelOf`; action-bar message to the attacker *(built 2026-11-08, untested)*
   - [x] 2.3 Potions that only apply effects (poison, weakness) never fire a damage event: handle `PotionSplashEvent` and `AreaEffectCloudApplyEvent`. Only potions with a `HARMFUL` effect (`PotionEffectType#getEffectCategory()`; `getCategory()` is deprecated since 26.3) are blocked, so healing a friend still works. One shared check, `blockingMine`, serves hits and both potion events. No action-bar message for potions *(built 2026-11-08, untested)*
-  - [ ] 2.4 Cancel at a low (early) priority; test that PvPManager doesn't combat-tag blocked hits. **Owner, in-game:** the PvP-levels check in `SETUP.md` section 14, step 3
-  - [x] 2.5 `SETUP.md`: setting mine levels; PvP stays off in a mine until its level is set; a mine's WorldGuard region must match the mine exactly *(section 9, steps 4 and 11; test in section 14)*
-- [ ] 3. Seasons: the checklist in `SETUP.md`, plus `/thebox market wipe` (see Seasons)
+  - [ ] 2.4 Cancel at a low (early) priority; test that PvPManager doesn't combat-tag blocked hits. **Owner, in-game:** the PvP-levels check in `README.md` section 14, step 3
+  - [x] 2.5 `README.md`: setting mine levels; PvP stays off in a mine until its level is set; a mine's WorldGuard region must match the mine exactly *(section 9, steps 4 and 11; test in section 14)*
+- [ ] 3. Seasons: the checklist in `README.md`, plus `/thebox market wipe` (see Seasons)
 - [ ] 4. `/ranks` shows each rank's unlocks (see Rank ladder), then M6 (designed 2026-11-09, see M6)
 
 ### Per-command permissions *(added 2026-11-08)*
 So admins can limit TheBox's player commands per world or per server (see Commands and permissions).
 - [ ] 1. Declare a node per player command in `plugin.yml` (`thebox.command.<command>`, `default: true`)
 - [ ] 2. Check it in each command's Brigadier `.requires(...)`, like `thebox.admin` on `/thebox`
-- [ ] 3. `SETUP.md`: limiting a command to a world or server with LuckPerms contexts
+- [ ] 3. `README.md`: limiting a command to a world or server with LuckPerms contexts
 - [ ] 4. Test with a `world=` context: does the client's command list update after a world change? If not, look at `Player#updateCommands()`.
 
 ### Gangs *(paused 2026-11-08)*

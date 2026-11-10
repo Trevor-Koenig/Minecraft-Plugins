@@ -32,7 +32,7 @@ Minigame plugins often run each arena as its own world on a shared server and is
 
 Standard practice on networks:
 - Separate servers by role: lobby servers, one per game mode, servers for minigames. Multiverse is still used *inside* a server (arena worlds; the prison's worlds).
-- Data that follows the player (ranks, friends, cosmetics) lives in a shared database keyed by UUID. LuckPerms on MariaDB is the standard example; setup is in [SETUP.md, "Network (later)"](../../plugins/TheBox/SETUP.md#network-later).
+- Data that follows the player (ranks, friends, cosmetics) lives in a shared database keyed by UUID. LuckPerms on MariaDB is the standard example; setup is in [TheBox's README, "Network (later)"](../../plugins/TheBox/README.md#network-later).
 - Each game mode usually has its own economy, on purpose. A prison economy is inflationary by design (mines create money; rank-ups and rent destroy it), so it shouldn't flow into other modes.
 - Cross-server features (parties, friends, `/hub`) are proxy plugins.
 

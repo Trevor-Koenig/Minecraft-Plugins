@@ -19,6 +19,16 @@ public record Box(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
         return new Box(min.x(), min.y(), min.z(), max.x(), max.y(), max.z());
     }
 
+    /** The box between two opposite corners, given in any order. */
+    public static Box between(int x1, int y1, int z1, int x2, int y2, int z2) {
+        return new Box(Math.min(x1, x2), Math.min(y1, y2), Math.min(z1, z2), Math.max(x1, x2), Math.max(y1, y2), Math.max(z1, z2));
+    }
+
+    /** This box grown by n blocks on every side. */
+    public Box expand(int n) {
+        return new Box(minX - n, minY - n, minZ - n, maxX + n, maxY + n, maxZ + n);
+    }
+
     public int sizeX() { return maxX - minX + 1; }
     public int sizeY() { return maxY - minY + 1; }
     public int sizeZ() { return maxZ - minZ + 1; }
@@ -41,6 +51,11 @@ public record Box(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
 
     public BlockVector3 min() { return BlockVector3.at(minX, minY, minZ); }
     public BlockVector3 max() { return BlockVector3.at(maxX, maxY, maxZ); }
+
+    /** "10 64 -3 to 16 67 4": the two corners, for messages. */
+    public String corners() {
+        return minX + " " + minY + " " + minZ + " to " + maxX + " " + maxY + " " + maxZ;
+    }
 
     /** "7x4x8": size along x, y and z. */
     public String describe() {

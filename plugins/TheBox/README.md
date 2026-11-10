@@ -403,18 +403,28 @@ The prices are placeholders, like `ranks.yml`'s: set them before players arrive.
    - tier 3: 23 wide, 24 deep, 8 tall
 
    Keep at least one block of solid wall around every plot (sides, back and top) and a floor under it: that's what stays between neighbors.
-2. **Register the plot.** Select exactly the plot with `//wand`, then:
+2. **Register each cell.** Stand on the corridor floor in front of the cell, lined up with its middle, facing the wall (at most 3 blocks from it), then:
    ```
-   /thebox cell create 1 c1
+   /thebox cell create 1 c1 here
    ```
-   The selection must be completely solid. TheBox remembers its most common block as the wall block, to rebuild the cell with later.
-3. **Set the front space.** Select the empty space right in front of the plot, where the cell's entrance will be: the strip of corridor the owner may decorate (1 to 3 blocks deep), within the plot's width and height. Start it at the plot's bottom layer, so the entrance is level with the room's floor. Then:
+   TheBox works out the rest from where you stand:
+   - **The plot** starts at the first block in front of you, is centered on you, starts at your feet, and is the tier's size from step 1. TheBox remembers its most common block as the wall block, to rebuild the cell with later.
+   - **The front space** (the strip of corridor the owner may decorate) is the air between the wall and you, as wide and tall as the plot. Stand right against the wall for a front space 1 deep, or a step or two back for 2 or 3. It's as tall as the plot so owners can redo their whole front wall: they can only build in the part of it behind their front space.
+
+   It checks everything before changing anything: the plot must be completely solid, the front space completely empty, and there must be at least one block of wall between this cell and any other. Then it carves the starting room behind the front wall and creates two WorldGuard regions: `thebox_cell_c1` (the room) and `thebox_cell_c1_front` (the front space plus the front wall). If a player is waiting for a cell, they get this one right away. The message says which way the front faces: if the cell is in the wrong spot, `/thebox cell delete c1` fills the plot back in, so you can try again.
+
+   **Don't build doors, windows or patterns into a plot:** TheBox fills the whole plot with the wall block when it creates the cell, and again every time the cell is freed. Doors and windows go in the tier's front (step 4).
+3. **Or use selections,** for a plot that isn't the tier's size or a front space smaller than the plot's front. Select exactly the plot with `//wand` and run `/thebox cell create 1 c1`. Then select the front space (1 to 3 blocks deep, within the plot's width and height, starting at the plot's bottom layer so the entrance is level with the room's floor) and run `/thebox cell setfront c1`. It makes the same checks.
+4. **Give each tier a front.** Decorate one free cell of the tier the way every cell should start: say, an iron door in the front wall, an iron-bars window next to it, a button on the outside, and a button on the inside so owners can get out. Then:
    ```
-   /thebox cell setfront c1
+   /thebox cell savefront c1
    ```
-   TheBox works out which side is the front, carves the starting room behind the front wall, and creates two WorldGuard regions: `thebox_cell_c1` (the room) and `thebox_cell_c1_front` (the front space plus the front wall). If a player is waiting for a cell, they get this one right away.
-4. Repeat for every cell. Build a few more tier 1 cells than you have players, since everyone gets one. `/thebox cell list` shows them all.
-5. **Unlock the sizes by rank.** Size 1 is free; each later size needs `thebox.cell.size.<n>`, counted across all tiers. On the default schedule, a size every third rank:
+   That saves the cell's front wall, its front space and the inside of the front wall as the tier's front, and puts it on every free cell in the tier right away, turned to match cells that face other ways. Cells with an owner get it the next time they're freed, and every cell gets it back each time it's rebuilt. You can save a front before or after creating the rest of the tier.
+   - **It must fit the smallest size:** doors, windows and gaps go in the part of the front wall in front of the starting room (the middle 3 blocks in tier 1, 11 in tier 2, 19 in tier 3). Solid blocks, like a frame around the door, can go anywhere.
+   - **Only plain blocks:** signs, banners, heads and containers are refused, because only the block is saved, not what's in it (a sign would come back blank). Item frames and armor stands aren't saved.
+   - Cells with a shallower front space get the parts that fit. To go back to a plain front, save a plain cell.
+5. Repeat for every cell. Build a few more tier 1 cells than you have players, since everyone gets one. `/thebox cell list` shows them all.
+6. **Unlock the sizes by rank.** Size 1 is free; each later size needs `thebox.cell.size.<n>`, counted across all tiers. On the default schedule, a size every third rank:
    ```
    lp group d permission set thebox.cell.size.2 true
    lp group g permission set thebox.cell.size.3 true
@@ -426,18 +436,18 @@ The prices are placeholders, like `ranks.yml`'s: set them before players arrive.
    lp group y permission set thebox.cell.size.9 true
    ```
 
-**Doors:** owners (and their helpers) can build in the front space and the front wall, e.g. an iron door with a button. WorldGuard stops everyone else using doors, buttons, levers and pressure plates in a region, so only they can open it. **Never set `use allow` on `__global__`:** its flags also apply inside regions that don't set them, so it would open every cell door. If spawn needs doors anyone can use, set `use allow` on the spawn region only.
+**Doors:** owners (and their helpers) can build in the front space and the front wall, e.g. an iron door with a button. WorldGuard stops everyone else using doors, buttons, levers and pressure plates in a region, so only they can open it. Owners can change the tier's front however they like. When the cell is freed, only what they added goes to their impound, and the tier's front is put back for the next owner. (An owner who breaks the default door keeps it: at most one door's worth per cell they own.) **Never set `use allow` on `__global__`:** its flags also apply inside regions that don't set them, so it would open every cell door. If spawn needs doors anyone can use, set `use allow` on the spawn region only.
 
 **How it works for players:**
 - `/cell` goes to their cell. `/cell visit <player>` goes to the front of someone else's (they have to be let in).
 - `/cell upgrade` opens a menu with the next size and its price. Within a tier, the room grows in place: the walls are carved back, sideways and away from the front, so the front wall and its door never move.
-- Moving up a tier gives them a new cell in the next tier's block. They keep the old one for 7 days to carry their things over (`/cell old`); shulker boxes keep their contents when broken. On `/cell release`, or when time's up, whatever's left goes to their impound (`/cell claim`), and the old cell is rebuilt as a starting room for the next player.
+- Moving up a tier gives them a new cell in the next tier's block. They keep the old one for 7 days to carry their things over (`/cell old`); shulker boxes keep their contents when broken. On `/cell release`, or when time's up, whatever's left goes to their impound (`/cell claim`), and the old cell is rebuilt as a starting room, with the tier's front, for the next player.
 - `/cell trust <player>` lets a friend build and open the door.
 - Hostile mobs don't spawn in cells. Players can make QuickShop shops in their cell, like in a stall.
 
 **Settings** in `cells.yml`: `move-days` (7), `max-helpers` (2), and `day-length-minutes` (1440). **For testing**, set `day-length-minutes` to e.g. 2, so a move's 7 "days" pass in 14 minutes. Set it back to 1440 for real use.
 
-**Admin tools:** `/thebox cell evict c1` clears a cell into its owner's impound and frees it. `delete` forgets a free cell (its blocks stay). `/thebox cell wipe` clears every cell for a new season: nothing goes to the impound.
+**Admin tools:** `/thebox cell evict c1` clears a cell into its owner's impound and frees it. `delete` forgets a free cell and fills its plot back in, so it's solid again, as it was before `create`. `/thebox cell wipe` clears every cell for a new season: nothing goes to the impound.
 
 ## 12. Prestige rewards
 
@@ -493,7 +503,7 @@ As a **non-op** player:
 6. Walking into a locked mine is blocked with "You haven't unlocked … yet."
 7. At the top rank, `/prestige` explains what prestiging does, and `/prestige confirm` does it: the player goes back to `a`, joins `p1`, and the server sees an announcement.
 8. `/market`, stand in a free stall, `/market rent`. Building works in your stall and nowhere else in the market. With `day-length-minutes: 2` and auto-renew off, the stall freezes after 2 minutes; after the grace period its contents show up in `/market claim`.
-9. A new player gets a cell when they join, and `/cell` takes them there. Building works in the room and the front space, not in the walls. With `thebox.cell.size.2`, `/cell upgrade` carves the room bigger and leaves what's in it alone. An iron door with a button in the front: another non-op player can't press the button.
+9. A new player gets a cell when they join, and `/cell` takes them there. Building works in the room and the front space, not in the walls. With `thebox.cell.size.2`, `/cell upgrade` carves the room bigger and leaves what's in it alone. With the tier's front saved (section 11, step 4): the cell has its door, and another non-op player can't press its button. Add a block to the front and `/thebox cell evict` the cell: only the added block goes to the impound, and the door comes back. Check a cell facing a different way too: its door and buttons should face the corridor. As an admin, `create ... here` is refused when standing one block off center would make the plot touch its neighbor's, and `/thebox cell delete` on a free cell makes its plot solid again.
 
 ## 15. Special events
 

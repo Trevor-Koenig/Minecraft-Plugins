@@ -7,6 +7,8 @@ import java.util.UUID;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.block.Block;
+import org.bukkit.block.structure.StructureRotation;
 import tech.shulker.thebox.regions.Box;
 
 /**
@@ -26,6 +28,26 @@ public class Cell {
     /** Which side of the plot the front space is on. Rooms grow the opposite way. */
     public enum Front {
         NORTH, SOUTH, WEST, EAST;
+
+        /** Turns a block that sat in a north-facing front to sit the same way in this one (tier fronts are stored facing north). */
+        StructureRotation fromNorth() {
+            return switch (this) {
+                case NORTH -> StructureRotation.NONE;
+                case EAST -> StructureRotation.CLOCKWISE_90;
+                case SOUTH -> StructureRotation.CLOCKWISE_180;
+                case WEST -> StructureRotation.COUNTERCLOCKWISE_90;
+            };
+        }
+
+        /** The opposite of {@link #fromNorth()}. */
+        StructureRotation toNorth() {
+            return switch (this) {
+                case NORTH -> StructureRotation.NONE;
+                case EAST -> StructureRotation.COUNTERCLOCKWISE_90;
+                case SOUTH -> StructureRotation.CLOCKWISE_180;
+                case WEST -> StructureRotation.CLOCKWISE_90;
+            };
+        }
 
         /** Facing into the room. Bukkit yaw: 0 is south, 90 west, 180 north, -90 east. */
         float yawIntoRoom() {
@@ -158,6 +180,38 @@ public class Cell {
                 yield new Box(x1, y1, z1, x1 + d - 1, y2, z1 + w - 1);
             }
         };
+    }
+
+    /**
+     * A block of the cell's front, by its place as you face the cell from the corridor: {@code side} from the plot's
+     * right edge, {@code up} from its bottom layer, {@code out} from the front wall (0) into the front space (1, 2, ...)
+     * or into the room (-1). The four directions are the same layout turned (not mirrored), so a front saved from one
+     * cell fits cells facing any way.
+     */
+    public Block frontBlock(World world, int side, int up, int out) {
+        int y = plot.minY() + up;
+        return switch (facing) {
+            case NORTH -> world.getBlockAt(plot.minX() + side, y, plot.minZ() - out);
+            case EAST -> world.getBlockAt(plot.maxX() + out, y, plot.minZ() + side);
+            case SOUTH -> world.getBlockAt(plot.maxX() - side, y, plot.maxZ() + out);
+            case WEST -> world.getBlockAt(plot.minX() - out, y, plot.maxZ() - side);
+        };
+    }
+
+    /** Where a room starts side to side, counted like {@link #frontBlock}'s {@code side}. */
+    public int roomSide(CellTier.Size size) {
+        Box room = room(size);
+        return switch (facing) {
+            case NORTH -> room.minX() - plot.minX();
+            case EAST -> room.minZ() - plot.minZ();
+            case SOUTH -> plot.maxX() - room.maxX();
+            case WEST -> plot.maxZ() - room.maxZ();
+        };
+    }
+
+    /** How deep the front space is, from the front wall out. */
+    public int frontDepth() {
+        return facing == Front.NORTH || facing == Front.SOUTH ? front.sizeZ() : front.sizeX();
     }
 
     /** The front space plus the front wall right behind it: where the owner can build at the front. */

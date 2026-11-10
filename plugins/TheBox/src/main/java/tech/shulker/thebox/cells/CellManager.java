@@ -8,18 +8,22 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
 import org.bukkit.World;
+import org.bukkit.block.Block;
 import org.bukkit.block.BlockType;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.configuration.ConfigurationSection;
@@ -128,15 +132,30 @@ public class CellManager implements Listener {
         return null;
     }
 
-    /** True if the box overlaps another cell's plot or front space. */
-    public boolean overlapsAny(String world, Box box, Cell except) {
+    /*
+     * Neighbors need at least one block of wall between them: a room at its largest fills its whole plot, so a plot
+     * touching another cell's plot or front space would open into it. Front spaces may touch each other (they're
+     * both open corridor), just not overlap.
+     */
+
+    /** Another cell that a new plot would overlap or touch, or null if there's at least a block between them. */
+    public Cell tooCloseToPlot(String world, Box plot, Cell except) {
+        return tooClose(world, except, plot.expand(1), plot.expand(1));
+    }
+
+    /** Another cell that a new front space would overlap (or touch, for a plot), or null. */
+    public Cell tooCloseToFront(String world, Box front, Cell except) {
+        return tooClose(world, except, front.expand(1), front);
+    }
+
+    private Cell tooClose(String world, Cell except, Box againstPlots, Box againstFronts) {
         for (Cell cell : cells.values()) {
             if (cell != except && cell.getWorldName().equals(world)
-                    && (cell.getPlot().overlaps(box) || (cell.getFront() != null && cell.getFront().overlaps(box)))) {
-                return true;
+                    && (cell.getPlot().overlaps(againstPlots) || (cell.getFront() != null && cell.getFront().overlaps(againstFronts)))) {
+                return cell;
             }
         }
-        return false;
+        return null;
     }
 
     /** Sizes are numbered across all tiers, 1 for the starting cell: size n needs thebox.cell.size.n. */
@@ -180,12 +199,24 @@ public class CellManager implements Listener {
         save();
     }
 
-    /** Forgets the cell and removes its regions. Its blocks stay as they are. */
-    public void removeCell(Cell cell) {
-        Regions.remove(plugin.getLogger(), cell.getWorld(), cell.getRoomRegionId());
-        Regions.remove(plugin.getLogger(), cell.getWorld(), cell.getFrontRegionId());
+    /**
+     * Forgets a free cell and removes its regions. If it was set up, its plot is filled back in with its wall block,
+     * so the cell block is solid again, as it was before /thebox cell create (the front space is left alone). Returns
+     * false if the plot couldn't be filled because the world isn't loaded.
+     */
+    public boolean removeCell(Cell cell) {
+        World world = cell.getWorld();
+        boolean filled = world != null;
+        if (filled && cell.isReady()) {
+            sendOut(cell, cell.getPlot());
+            fill(world, cell.getPlot(), wallBlockData(cell));
+            fill(world, cell.getFront(), BlockType.AIR.createBlockData()); // empty, as create found it
+        }
+        Regions.remove(plugin.getLogger(), world, cell.getRoomRegionId());
+        Regions.remove(plugin.getLogger(), world, cell.getFrontRegionId());
         cells.remove(cell.getId());
         save();
+        return filled;
     }
 
     /** Sets a free cell's front space, rebuilds it as a fresh starting room, and creates its regions. */
@@ -195,6 +226,23 @@ public class CellManager implements Listener {
         syncRegions(cell);
         save();
         giveCellsToWaitingPlayers();
+    }
+
+    /**
+     * Makes {@code front} the tier's cell front and puts it on every free cell of the tier right away; cells with an
+     * owner get it the next time they're freed. Returns how many cells got it now.
+     */
+    public int setTierFront(CellTier tier, List<CellTier.FrontBlock> front) {
+        tiers.put(tier.number(), new CellTier(tier.number(), tier.sizes(), List.copyOf(front)));
+        int rebuilt = 0;
+        for (Cell cell : cells.values()) {
+            if (cell.getTier() == tier.number() && cell.isFree() && cell.isReady() && cell.getWorld() != null) {
+                rebuild(cell);
+                rebuilt++;
+            }
+        }
+        save();
+        return rebuilt;
     }
 
     /** Gives the player a free starting cell (first tier), or returns null if none is free. */
@@ -279,13 +327,8 @@ public class CellManager implements Listener {
             return -1;
         }
         Box room = cell.room(size);
-        // Rebuilding fills the room with wall, so nobody may be standing in it: send them out to the front space.
-        Location outside = cell.visit();
-        for (Player player : world.getPlayers()) {
-            if (room.contains(player.getLocation())) {
-                player.teleport(outside);
-            }
-        }
+        sendOut(cell, room);
+        removeOwnFront(cell, tiers.get(cell.getTier()));
         // The front region includes the front wall, so a door or window the owner put in it comes back to them too.
         List<ItemStack> items = new ArrayList<>(RegionClearer.clear(world, room, shops.get()));
         items.addAll(RegionClearer.clear(world, cell.frontRegion(), shops.get()));
@@ -301,15 +344,85 @@ public class CellManager implements Listener {
 
     // ---------------------------------------------------------------- blocks
 
-    /** Fills the whole plot with its wall block, then carves the starting room. */
+    /** Before filling part of a cell with wall: sends anyone standing in that part out to the front space. */
+    private static void sendOut(Cell cell, Box area) {
+        Location outside = cell.visit();
+        for (Player player : cell.getWorld().getPlayers()) {
+            if (area.contains(player.getLocation())) {
+                player.teleport(outside);
+            }
+        }
+    }
+
+    /**
+     * Makes the cell new: fills the whole plot with its wall block, empties the front space, carves the starting room,
+     * and puts the tier's front on it. Anyone in the plot is sent out to the front space first.
+     */
     private void rebuild(Cell cell) {
         World world = cell.getWorld();
         CellTier tier = tiers.get(cell.getTier());
         if (world == null || tier == null || !cell.isReady()) {
             return;
         }
+        sendOut(cell, cell.getPlot());
+        BlockData air = BlockType.AIR.createBlockData();
         fill(world, cell.getPlot(), wallBlockData(cell));
-        fill(world, cell.room(tier.sizes().getFirst()), BlockType.AIR.createBlockData());
+        fill(world, cell.getFront(), air);
+        fill(world, cell.room(tier.sizes().getFirst()), air);
+        // Placed last, without physics: buttons and torches need the wall to be there, and doors need both halves.
+        int roomSide = cell.roomSide(tier.sizes().getFirst());
+        for (CellTier.FrontBlock entry : tier.front()) {
+            Block block = cell.frontBlock(world, entry.side() + roomSide, entry.up(), entry.out());
+            if (fitsFront(cell, tier, block, entry.out())) {
+                BlockData data = entry.data().clone();
+                data.rotate(cell.getFacing().fromNorth());
+                block.setBlockData(data, false);
+            }
+        }
+    }
+
+    /**
+     * Before a cell is cleared into its owner's impound: removes the parts of its front that are still as TheBox put
+     * them (the wall block in the front wall, and the tier's front), so only what the owner added is impounded.
+     * Otherwise every owner leaving would get a free door, and the front wall's blocks. Compared by block type, so an
+     * opened door or a pressed button still counts as the cell's own.
+     */
+    private void removeOwnFront(Cell cell, CellTier tier) {
+        World world = cell.getWorld();
+        if (world == null || tier == null) {
+            return;
+        }
+        BlockData air = BlockType.AIR.createBlockData();
+        Set<Location> tierFront = new HashSet<>();
+        int roomSide = cell.roomSide(tier.sizes().getFirst());
+        for (CellTier.FrontBlock entry : tier.front()) {
+            Block block = cell.frontBlock(world, entry.side() + roomSide, entry.up(), entry.out());
+            if (fitsFront(cell, tier, block, entry.out())) {
+                tierFront.add(block.getLocation());
+                if (block.getType() == entry.data().getMaterial()) {
+                    block.setBlockData(air, false);
+                }
+            }
+        }
+        Material wall = wallBlockData(cell).getMaterial();
+        int width = Cell.plotWidth(cell.getPlot(), cell.getFacing());
+        for (int side = 0; side < width; side++) {
+            for (int up = 0; up < cell.getPlot().sizeY(); up++) {
+                Block block = cell.frontBlock(world, side, up, 0);
+                if (!tierFront.contains(block.getLocation()) && block.getType() == wall) {
+                    block.setBlockData(air, false);
+                }
+            }
+        }
+    }
+
+    /**
+     * Whether a block of a tier's front has a place in this cell: in its front wall, its front space (which may be
+     * shallower than the one the front was saved from), or the first layer of its starting room.
+     */
+    private static boolean fitsFront(Cell cell, CellTier tier, Block block, int out) {
+        Box area = out == 0 ? cell.getPlot() : out > 0 ? cell.getFront() : cell.room(tier.sizes().getFirst());
+        return area.contains(block.getX(), block.getY(), block.getZ());
     }
 
     /**
@@ -475,7 +588,7 @@ public class CellManager implements Listener {
                     plugin.getLogger().warning("cells.yml: tier " + key + " has no sizes; skipping it.");
                     continue;
                 }
-                tiers.put(number, new CellTier(number, sizes));
+                tiers.put(number, new CellTier(number, sizes, readFront(key, tierSection.getStringList(key + ".front"))));
             }
         }
 
@@ -498,11 +611,26 @@ public class CellManager implements Listener {
     /** The default sizes (see design: a size every third rank, A to Y). Prices are placeholders, like ranks.yml's. */
     private void addDefaultTiers() {
         tiers.put(1, new CellTier(1, List.of(
-            new CellTier.Size(3, 3, 4, 0), new CellTier.Size(5, 5, 4, 1000), new CellTier.Size(7, 7, 4, 2000))));
+            new CellTier.Size(3, 3, 4, 0), new CellTier.Size(5, 5, 4, 1000), new CellTier.Size(7, 7, 4, 2000)), List.of()));
         tiers.put(2, new CellTier(2, List.of(
-            new CellTier.Size(11, 11, 6, 8000), new CellTier.Size(13, 13, 6, 5000), new CellTier.Size(15, 15, 6, 6000))));
+            new CellTier.Size(11, 11, 6, 8000), new CellTier.Size(13, 13, 6, 5000), new CellTier.Size(15, 15, 6, 6000)), List.of()));
         tiers.put(3, new CellTier(3, List.of(
-            new CellTier.Size(19, 19, 8, 14000), new CellTier.Size(21, 21, 8, 8000), new CellTier.Size(23, 23, 8, 9000))));
+            new CellTier.Size(19, 19, 8, 14000), new CellTier.Size(21, 21, 8, 8000), new CellTier.Size(23, 23, 8, 9000)), List.of()));
+    }
+
+    /** Reads a tier's front: one "side up out block-data" line per block (see CellTier.FrontBlock). */
+    private List<CellTier.FrontBlock> readFront(String tier, List<String> lines) {
+        List<CellTier.FrontBlock> front = new ArrayList<>();
+        for (String line : lines) {
+            String[] parts = line.split(" ", 4);
+            try {
+                front.add(new CellTier.FrontBlock(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]), Integer.parseInt(parts[2]),
+                    plugin.getServer().createBlockData(parts[3])));
+            } catch (RuntimeException e) { // a bad number, a missing part, or block data this Minecraft version doesn't know
+                plugin.getLogger().warning("cells.yml: tier " + tier + ": skipping front block '" + line + "': " + e.getMessage());
+            }
+        }
+        return front;
     }
 
     /** Reads a tier's sizes. A size smaller than the one before it is raised to match: cells only ever grow. */
@@ -576,6 +704,7 @@ public class CellManager implements Listener {
             "tiers: the sizes a cell grows through (room floor width x depth, and height) and each one's price.",
             "  The first size of tier 1 is the free starting cell; the first size of a later tier is a move to a new cell.",
             "  Only change sizes before cells are built: plots are built for the largest size, and cells never shrink.",
+            "  front: the tier's cell front (door, window, button...), saved with /thebox cell savefront. Don't edit it by hand.",
             "settings.day-length-minutes: how long a \"day\" lasts for move-days. Set it to e.g. 2 to test moving quickly."));
         yaml.set("settings.move-days", moveDays);
         yaml.set("settings.max-helpers", maxHelpers);
@@ -591,6 +720,10 @@ public class CellManager implements Listener {
                 sizes.add(map);
             }
             yaml.set("tiers." + tier.number() + ".sizes", sizes);
+            if (!tier.front().isEmpty()) {
+                yaml.set("tiers." + tier.number() + ".front", tier.front().stream()
+                    .map(b -> b.side() + " " + b.up() + " " + b.out() + " " + b.data().getAsString()).toList());
+            }
         }
         for (Cell cell : cells.values()) {
             String path = "cells." + cell.getId();
