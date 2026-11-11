@@ -199,6 +199,35 @@ public class MarketManager implements Listener {
         return items.size();
     }
 
+    /** What a wipe did: stalls cleared, rented stalls skipped (world not loaded), and impound stacks deleted. */
+    public record WipeResult(int stalls, int skipped, int impoundStacks) {}
+
+    /**
+     * New season: clears every rented stall (nothing goes to the impound) and frees it, then empties the whole
+     * impound, which also holds what evicted cells left behind. Stalls in unloaded worlds stay rented, as in evict.
+     */
+    public WipeResult wipe() {
+        int cleared = 0;
+        int skipped = 0;
+        for (Marketplace m : markets.values()) {
+            for (Stall stall : m.getStalls().values()) {
+                if (!stall.isRented()) {
+                    continue;
+                }
+                if (stall.getWorld() == null) {
+                    skipped++;
+                    continue;
+                }
+                RegionClearer.clear(stall.getWorld(), boxOf(stall), shops); // the items are thrown away
+                stall.setRenter(null, 0);
+                syncRegion(stall);
+                cleared++;
+            }
+        }
+        save();
+        return new WipeResult(cleared, skipped, impound.clear());
+    }
+
     // ---------------------------------------------------------------- WorldGuard
 
     private static Box boxOf(Stall stall) {

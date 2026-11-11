@@ -10,7 +10,7 @@ import org.bukkit.block.BlockType;
 /** A cuboid region that refills with a weighted mix of blocks. */
 public class Mine {
 
-    private final String id;
+    private String id;
     private final World world;
     private final int minX, minY, minZ;
     private final int maxX, maxY, maxZ;
@@ -57,6 +57,8 @@ public class Mine {
     }
 
     public String getId() { return id; }
+    /** Only for MineManager.rename: mines are kept in a map keyed by id. */
+    void setId(String id) { this.id = id; }
     public World getWorld() { return world; }
     public int getMinX() { return minX; }
     public int getMinY() { return minY; }

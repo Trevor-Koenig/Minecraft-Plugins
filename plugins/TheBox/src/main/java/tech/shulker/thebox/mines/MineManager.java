@@ -113,6 +113,21 @@ public class MineManager implements Listener {
         save();
     }
 
+    /**
+     * Gives the mine a new id and saves. Returns false if the id is taken, also by an inactive mine (one whose
+     * world isn't loaded): a rename shouldn't silently replace it, the way create does.
+     */
+    public boolean rename(Mine mine, String newId) {
+        if (mines.containsKey(newId) || unloadedMines.containsKey(newId)) {
+            return false;
+        }
+        mines.remove(mine.getId());
+        mine.setId(newId);
+        mines.put(newId, mine);
+        save();
+        return true;
+    }
+
     // ---------------------------------------------------------------- resetting
 
     /**

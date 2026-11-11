@@ -52,6 +52,14 @@ public class Impound {
         return entries.getOrDefault(owner, List.of()).size();
     }
 
+    /** New season: empties every player's impound. Returns how many stacks were deleted. */
+    public int clear() {
+        int stacks = entries.values().stream().mapToInt(List::size).sum();
+        entries.clear();
+        save();
+        return stacks;
+    }
+
     public void add(UUID owner, Collection<ItemStack> items) {
         long now = System.currentTimeMillis();
         List<Entry> list = entries.computeIfAbsent(owner, uuid -> new ArrayList<>());

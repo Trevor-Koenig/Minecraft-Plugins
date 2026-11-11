@@ -52,6 +52,9 @@ public class MarketAdminCommand {
                 .then(marketArgument().executes(this::setTeleport)))
             .then(Commands.literal("list").executes(this::list))
             .then(Commands.literal("reload").executes(this::reload))
+            .then(Commands.literal("wipe")
+                .executes(this::wipeInfo)
+                .then(Commands.literal("confirm").executes(this::wipe)))
             .then(Commands.literal("stall")
                 .then(Commands.literal("create")
                     .then(marketArgument()
@@ -134,11 +137,32 @@ public class MarketAdminCommand {
             <yellow>/thebox market list</yellow> <gray>- all markets</gray>
             <yellow>/thebox market delete \\<market></yellow> <gray>- delete a market (no rented stalls allowed)</gray>
             <yellow>/thebox market reload</yellow> <gray>- re-read markets.yml</gray>
+            <yellow>/thebox market wipe</yellow> <gray>- new season: clear and free every stall, empty every impound</gray>
             <yellow>/thebox market stall create \\<market> \\<stall> \\<rent></yellow> <gray>- make your WorldEdit selection a stall; select only the empty space players may build in</gray>
             <yellow>/thebox market stall setrent \\<market> \\<stall> \\<rent></yellow> <gray>- change the daily rent</gray>
             <yellow>/thebox market stall list \\<market></yellow> <gray>- stalls and renters</gray>
             <yellow>/thebox market stall evict \\<market> \\<stall></yellow> <gray>- clear a stall into its renter's impound</gray>
             <yellow>/thebox market stall delete \\<market> \\<stall></yellow> <gray>- delete a free stall</gray>""");
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private int wipeInfo(CommandContext<CommandSourceStack> ctx) {
+        ctx.getSource().getSender().sendRichMessage("<gold>This clears every rented stall for a new season</gold><gray>: everything in them "
+            + "is deleted (nothing goes to the impound) and every stall is freed. Then every player's impound is emptied, "
+            + "including what evicted cells left there. Server booths outside stalls aren't touched. "
+            + "Back up first. Run <yellow>/thebox market wipe confirm</yellow> to do it.");
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private int wipe(CommandContext<CommandSourceStack> ctx) {
+        MarketManager.WipeResult result = market.wipe();
+        CommandSender sender = ctx.getSource().getSender();
+        sender.sendRichMessage("<green>Wiped " + result.stalls() + " stall(s) and emptied the impound ("
+            + result.impoundStacks() + " stack(s) deleted).");
+        if (result.skipped() > 0) {
+            sender.sendRichMessage("<yellow>" + result.skipped() + " rented stall(s) are in a world that isn't loaded, so they "
+                + "stay rented. Load the world and run the wipe again.");
+        }
         return Command.SINGLE_SUCCESS;
     }
 

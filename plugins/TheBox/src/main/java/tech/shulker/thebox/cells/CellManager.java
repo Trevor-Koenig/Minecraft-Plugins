@@ -132,6 +132,16 @@ public class CellManager implements Listener {
         return null;
     }
 
+    /** What a player's first cell costs: the price of the first tier's first size in cells.yml (0 is free). */
+    public double starterPrice() {
+        return tiers.isEmpty() ? 0 : tiers.firstEntry().getValue().sizes().getFirst().price();
+    }
+
+    /** True if a starting cell (first tier) is free to hand out. */
+    public boolean hasFreeStarterCell() {
+        return !tiers.isEmpty() && freeCell(tiers.firstKey()) != null;
+    }
+
     /*
      * Neighbors need at least one block of wall between them: a room at its largest fills its whole plot, so a plot
      * touching another cell's plot or front space would open into it. Front spaces may touch each other (they're
@@ -225,7 +235,6 @@ public class CellManager implements Listener {
         rebuild(cell);
         syncRegions(cell);
         save();
-        giveCellsToWaitingPlayers();
     }
 
     /**
@@ -290,7 +299,6 @@ public class CellManager implements Listener {
         int stacks = clearAndFree(cell, true);
         if (stacks >= 0) {
             save();
-            giveCellsToWaitingPlayers();
         }
         return stacks;
     }
@@ -304,7 +312,6 @@ public class CellManager implements Listener {
             }
         }
         save();
-        giveCellsToWaitingPlayers();
         return cleared;
     }
 
@@ -487,23 +494,13 @@ public class CellManager implements Listener {
         Regions.sync(plugin.getLogger(), world, cell.getFrontRegionId(), cell.frontRegion(), REGION_PRIORITY, members, NO_MOBS);
     }
 
-    // ---------------------------------------------------------------- handing out cells
+    // ---------------------------------------------------------------- joining
 
-    /** Gives a starting cell to every online player who has none, while free cells last. */
-    private void giveCellsToWaitingPlayers() {
-        for (Player player : plugin.getServer().getOnlinePlayers()) {
-            UUID uuid = player.getUniqueId();
-            if (currentCell(uuid) != null || oldCell(uuid) != null) {
-                continue;
-            }
-            if (assignStarterCell(uuid) == null) {
-                return; // none left
-            }
-            player.sendRichMessage("<green>You got a cell! <yellow>/cell</yellow> takes you there.");
-        }
-    }
-
-    /** Every player gets a starting cell when they join without one (new players, and everyone after a season wipe). */
+    /**
+     * Reminds players about an old cell they're moving out of, and tells players without a cell how to get one.
+     * Cells are only handed out when a player asks (/cell), so admins and players who join once and never come
+     * back don't use one up: nothing takes a cell back from an inactive player.
+     */
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
@@ -513,14 +510,8 @@ public class CellManager implements Listener {
             player.sendRichMessage("<gold>You're moving out of your old cell: it's cleared in <time>, and what's left goes to your impound. "
                 + "<yellow>/cell old</yellow> takes you there.", Placeholder.unparsed("time", Durations.format(old.getReleaseAt() - System.currentTimeMillis())));
         }
-        if (currentCell(uuid) != null || old != null || cells.isEmpty()) {
-            return; // has a cell, or this server doesn't use cells (yet)
-        }
-        if (assignStarterCell(uuid) != null) {
-            player.sendRichMessage("<green>You got a cell! <yellow>/cell</yellow> takes you there.");
-        } else {
-            player.sendRichMessage("<gold>Every cell is taken right now. You'll get one as soon as one is free.");
-            warnAdmins(player.getName() + " has no cell: every starting cell is taken. Build and register more (/thebox cell create).");
+        if (currentCell(uuid) == null && old == null && !cells.isEmpty()) { // cells.isEmpty(): this server doesn't use cells (yet)
+            player.sendRichMessage("<gray>You don't have a cell yet. Type <yellow>/cell</yellow> to get your own.");
         }
     }
 
@@ -608,14 +599,17 @@ public class CellManager implements Listener {
         }
     }
 
-    /** The default sizes (see design: a size every third rank, A to Y). Prices are placeholders, like ranks.yml's. */
+    /**
+     * The default sizes (see design: a size every third rank, A to Y). Prices are placeholders, like ranks.yml's,
+     * except the first cell's 2000: a small first goal, so players play a while before they get a cell.
+     */
     private void addDefaultTiers() {
         tiers.put(1, new CellTier(1, List.of(
-            new CellTier.Size(3, 3, 4, 0), new CellTier.Size(5, 5, 4, 1000), new CellTier.Size(7, 7, 4, 2000)), List.of()));
+            new CellTier.Size(3, 3, 3, 2000), new CellTier.Size(5, 5, 3, 4000), new CellTier.Size(7, 7, 3, 8000)), List.of()));
         tiers.put(2, new CellTier(2, List.of(
-            new CellTier.Size(11, 11, 6, 8000), new CellTier.Size(13, 13, 6, 5000), new CellTier.Size(15, 15, 6, 6000)), List.of()));
+            new CellTier.Size(11, 11, 6, 32000), new CellTier.Size(13, 13, 6, 20000), new CellTier.Size(15, 15, 6, 24000)), List.of()));
         tiers.put(3, new CellTier(3, List.of(
-            new CellTier.Size(19, 19, 8, 14000), new CellTier.Size(21, 21, 8, 8000), new CellTier.Size(23, 23, 8, 9000)), List.of()));
+            new CellTier.Size(19, 19, 8, 56000), new CellTier.Size(21, 21, 8, 32000), new CellTier.Size(23, 23, 8, 36000)), List.of()));
     }
 
     /** Reads a tier's front: one "side up out block-data" line per block (see CellTier.FrontBlock). */
@@ -702,7 +696,7 @@ public class CellManager implements Listener {
             "TheBox cells. Edited by /thebox cell commands; upgrades and moves change it too.",
             "You can edit it by hand: run /thebox cell reload right after, or the next change overwrites your edits.",
             "tiers: the sizes a cell grows through (room floor width x depth, and height) and each one's price.",
-            "  The first size of tier 1 is the free starting cell; the first size of a later tier is a move to a new cell.",
+            "  The first size of tier 1 is a player's first cell (/cell buy; price 0 makes it free); the first size of a later tier is a move to a new cell.",
             "  Only change sizes before cells are built: plots are built for the largest size, and cells never shrink.",
             "  front: the tier's cell front (door, window, button...), saved with /thebox cell savefront. Don't edit it by hand.",
             "settings.day-length-minutes: how long a \"day\" lasts for move-days. Set it to e.g. 2 to test moving quickly."));

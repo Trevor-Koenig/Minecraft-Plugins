@@ -61,7 +61,7 @@ A player-run market area where players buy or rent **stalls**, build their store
 - **Decided (2026-11-08): TheBox custom-codes all market logic** (stalls, renting, eviction, `/market`); only the shop interfaces come from QuickShop-Hikari. The usual stall-rental plugins look unmaintained anyway (AreaShop's last release was 2019; AdvancedRegionMarket's was March 2025). Stalls are the same machinery as cells (a WorldGuard region a player rents or owns, plus payments), so one shared TheBox module serves both.
 - **When rent lapses** *(decided 2026-11-08: the impound flow; grace period and impound expiry lengths still to pick)*: prepaid rent that auto-renews from the balance, warnings, then a grace period where the stall stays intact; after that, eviction moves everything (container contents, the blocks themselves as items, item frames and armor stands) into the player's impound (`/market claim`), and the stall resets to empty. Optionally, unclaimed impound is auto-sold at market value after a while (unpriced or customized items count as $0).
 - Clearing a stall with WorldEdit doesn't fire block events, so TheBox must remove that stall's QuickShop shops through QuickShop's API, or QuickShop would keep "ghost" shops.
-- *(idea, 2026-11-08)* A better-located marketplace unlocked at a higher rank, as something to work toward. Needs a rent permission per marketplace; `thebox.market.rent` covers all of them today.
+- ~~*(idea, 2026-11-08)* A better-located marketplace unlocked at a higher rank~~: dropped 2026-11-10. The server has one player market plus the server's booths (see `README.md`, "Server booths"); there are too few players to split them. `thebox.market.rent` stays a single permission.
 
 ### Cell
 A player's own personal space, a classic prison feature. **Redesigned 2026-11-09**; what changed from the 2026-11-08 design is at the end of this section.
@@ -73,17 +73,17 @@ A player's own personal space, a classic prison feature. **Redesigned 2026-11-09
 
   | Tier | Sizes (rank that unlocks them) | Height |
   |---|---|---|
-  | 1 | 3×3 (A, free) → 5×5 (D) → 7×7 (G) | 4 |
+  | 1 | 3×3 (A, $2,000) → 5×5 (D) → 7×7 (G) | 3 |
   | 2 | 11×11 (J, move) → 13×13 (M) → 15×15 (P) | 6 |
   | 3 | 19×19 (S, move) → 21×21 (V) → 23×23 (Y) | 8 |
 
   - Buying size *n* (2–9) needs `thebox.cell.size.<n>`, granted to its rank group like mine unlocks, so `/ranks` can list it.
-  - Default prices: about the cost of the rank that unlocks the size; tier moves cost twice that. Cells add about 40 hours on top of the 100-hour ladder (see Economy and pacing). They're optional: players who invest in cells reach Z later.
+  - Default prices: about the cost of the rank that unlocks the size; tier moves cost twice that. The first cell costs $2,000 *(decided 2026-11-10)*, a small first goal so players play a while before they get one; `/cell` shows the price and `/cell buy` pays. Cells add about 40 hours on top of the 100-hour ladder (see Economy and pacing). They're optional: players who invest in cells reach Z later.
 - **Tier moves are by hand** *(decided 2026-11-09)*. Buying size 4 or 7 gives the player a free cell in the next tier's block. They keep the old cell for 7 days (`/cell old`) to carry things over; shulker boxes are the moving boxes. On `/cell release`, or when the time is up, whatever is left goes to their **impound** through the stall clearer (Silk Touch drops, containers emptied, item frames and armor stands), and the old cell is reset to its starting room and freed. Nothing is copied, so nothing can duplicate.
 - **Doors need no code:** WorldGuard stops non-members using doors, buttons, pressure plates and levers inside a region ([What's protected](https://worldguard.enginehub.org/en/latest/regions/scope/)), so only the owner and trusted helpers can open a cell door. **Never set `use allow` on `__global__`:** its flags also apply inside regions that don't set them, so it would open every cell door.
 - **Commands:** `/cell` (home, inside the room), `/cell visit <player>` (to their front space, e.g. straight from a mine), `/cell upgrade` (also a chest menu), `/cell trust|untrust`, `/cell old`, `/cell release`. PvPManager blocks commands during combat, so `/cell` can't be used to escape a fight (check in testing).
 - **Prestige:** cells survive prestige. Seasons wipe them (see Seasons).
-- **Still true from 2026-11-08:** every player gets a free first cell when they first join (if none is free, they get one as soon as one is registered, and admins are warned); one cell per player; no hostile mob spawning (TheBox sets `mob-spawning deny` on cell regions); cells of inactive players are kept for now; later upgrades besides size: a cell shop and more trusted builders.
+- **Still true from 2026-11-08:** one cell per player; *(changed 2026-11-10: players buy their first cell with `/cell buy` instead of getting one free on join; if none is free, admins are warned)*; no hostile mob spawning (TheBox sets `mob-spawning deny` on cell regions); cells of inactive players are kept for now; later upgrades besides size: a cell shop and more trusted builders.
 - **What changed on 2026-11-09:** tier moves are by hand instead of a WorldEdit copy, so the riskiest code is gone; sizes come from `cells.yml` instead of one selection per size; cells grow away from a front space instead of in every direction, so they can have real doors; the visit lock is gone, because visitors arrive outside the door. The "proposed simplification" (no tier moves) wasn't adopted.
 
 ### PvP
@@ -122,25 +122,59 @@ Planned 2026-11-08 (from the first player test): a store at spawn where players 
 - A hall at spawn, protected by WorldGuard like the rest of spawn. Not a TheBox marketplace, so there are no stalls to rent.
 - QuickShop-Hikari admin shops: create a shop as usual, then run `/quickshop unlimited` while looking at it, for endless stock paid to the server ([Create an Admin Shop](https://quickshop-community.github.io/QuickShop-Hikari-Documents/docs/guides/getting-started/create-admin-shop)). The `unlimited-shop-owner-change` settings in QuickShop's `config.yml` can move them to a server account. A shop sells the exact item it was created with, so enchanted gear works.
 - **Pricing rules:** every item must cost more than `/sell` pays for it in `prices.yml`, or buying and selling in a loop makes free money. Only *selling* admin shops; a buying one would be a second `/sell` with its own prices.
+- **Prices** *(first draft 2026-11-10, at the money scale in Economy and pacing)*:
+  - Pickaxes lose 1 durability per block, so they're consumables. Each costs about $0.32 per block of durability, which is 8% of what a block earns. So every pickaxe costs the same per block, and better ones pay for themselves by mining faster. Unbreaking II makes a tool last 3× as long, III 4×.
+  - Players can craft plain gear from mined materials, so plain items cost about 2× their materials' sell value. Enchantments are what the store adds. What a PvP death costs is set by material prices, not by the store.
+  - Players start with $0 (EssentialsX `starting-balance`), so EssentialsX's first-join kit (`newbies.kit`) gives a stone pickaxe. It fires again after a season reset.
+
+  | Item | Price |
+  |---|---|
+  | Stone pickaxe | 40 |
+  | Iron pickaxe, Unbreaking II | 240 |
+  | Diamond pickaxe, Efficiency II, Unbreaking III | 2,000 |
+  | Iron sword / shield | 120 / 60 |
+  | Iron helmet / chestplate / leggings / boots | 240 / 400 / 360 / 200 |
+  | Torch / chest / crafting table / furnace | 4 / 80 / 40 / 40 |
+  | Bread / cooked salmon / steak | 8 / 12 / 16 |
+  | Golden apple | 800 |
+
+  - **Food:** mining barely uses any: 0.005 exhaustion per block, about 4–5 food points an hour. The free kit covers that, so store food is for fights, where healing costs 1.5 food points per HP. Ordinary food costs about $0.80 per point of hunger plus saturation. Beetroot isn't sold, because the test server's kit gives it. The store's prices cap what players can charge for food in stalls: if cell farms come, raise store food or stop selling steak and salmon.
+  - **Golden apples** (8 gold ingots and an apple, about 2× material) are the PvP cost. A fixed price gets relatively cheaper as incomes rise, so revisit it with PvP balance.
+  - Iron and gold gear smelts into nuggets, so keep nuggets unpriced.
+  - Left out until rank costs follow the formula: diamond armor, netherite, Efficiency IV–V, Protection, Fortune.
 - Chosen over a GUI: no code to maintain, players learn the shop interface they'll use in the market, and the world gets a landmark. An item that opens a GUI was ruled out because items drop on death in PvP mines. Revisit with a TheBox chest menu only if gear needs to be locked by rank.
 
 ### Seasons
 Agreed 2026-11-08: a new season resets all player progress. **A checklist in `README.md` first, not a command:** most steps already have a tool, and a one-shot command that can't be undone is the riskiest thing to build. Automate the annoying parts after a season or two.
-1. Back up, with the server stopped: the world folder and `plugins/`.
-2. Ranks: `lp bulkupdate users delete "permission == group.b"`, one line per group `b`–`z` ([Bulk editing](https://luckperms.net/wiki/Bulk-Editing)). Console-only, with a confirmation code. TheBox puts players back in `a` at their next join.
-3. Balances: `eco reset ** 0` (`**` includes offline players; resets to `starting-balance`, the number is ignored). An [old bug report](https://github.com/EssentialsX/Essentials/issues/5305) says `**` failed on some builds, so check `/baltop` afterwards.
-4. Inventories, ender chests, locations, XP: delete the per-player files in `world/players/data/` with the server stopped. Minecraft 26.1 moved them there from `playerdata/` ([26.1 changelog](https://minecraft.wiki/w/Java_Edition_26.1)). Paper can't edit offline players' inventories, so an in-game version would have to reset each player at their next join.
-5. Mines: reset each one.
-6. Stalls: **a gap.** `stall evict` sends contents to the impound, which would carry items into the new season. New code: `/thebox market wipe` frees and clears every stall and empties every impound. The store's admin shops aren't in stalls, so they survive.
-7. Cells: `/thebox cell wipe` resets every cell to its starting room, with no impound (M6).
 
-- On the network this only touches the prison server. LuckPerms is shared, but the bulk update only touches the prison's rank groups.
-- Prestige across seasons is open (see open questions). Leaning: keep it. Rank costs rise with prestige, so veterans pay *more* per rank in a new season and keep only status and cosmetics. A manual reset uses the same bulk update for `p1`, `p2`, ….
+**Written 2026-11-10 as `README.md` section 16.** A season makes everyone a new player: rank, prestige, balance, cell, inventory and newbie protection all reset. Setup stays: mines, cells and their prices, sell prices, groups, staff permissions and the server booths.
+- **Where player data lives.** Paper can't edit offline players, so most of it is deleted with the server stopped. An in-game version would have to reset each player at their next join.
+  - Vanilla: `world/players/data`, `advancements` and `stats`. Minecraft 26.1 moved them there ([26.1 changelog](https://minecraft.wiki/w/Java_Edition_26.1)).
+  - EssentialsX: `userdata/` (balances, used kits, homes). EssentialsX detects first joins from its own data, so deleting it makes the first-join kit fire again.
+  - PvPManager: `database.db`. Newbie protection only goes to players with default PvPManager data who also haven't played before (`hasPlayedBefore()`). `/newbie add` only takes online players.
+- **Ranks and prestige:** `lp bulkupdate users delete "permission ~~ group._"`, and the same with `group.p_` ([Bulk editing](https://luckperms.net/wiki/Bulk-Editing); `~~` is SQL `LIKE`, where `_` is one character). Use `users`, not `all`, because the rank groups inherit each other. TheBox puts players back in `a` at their next join.
+- **Decided 2026-11-10: delete EssentialsX `userdata/`**, for a real first join, at the cost of homes, nicknames, mail and mutes. The alternative is `eco reset ** 0` (`**` includes offline players; it resets to `starting-balance`). An [old bug report](https://github.com/EssentialsX/Essentials/issues/5305) says `**` failed on some builds.
+- **Decided 2026-11-10: prestige resets with the season**, as part of the full reset (replaces the earlier lean toward keeping it).
+- **Stalls:** `/thebox market wipe` *(built 2026-11-10, untested)* clears every rented stall without impounding, frees it, then empties the whole impound, which also holds evicted cells' leftovers. Rented stalls in unloaded worlds are skipped and reported. The store's admin shops aren't in stalls, so they survive. Because this runs in-game, the checklist needs only one restart: delete files while stopped, then run the wipes.
+- Cells: `/thebox cell wipe` resets every cell to its starting room, with no impound (M6). Mines: reset each one.
+- The starter kit is EssentialsX's `newbies.kit`, which fires again after a reset.
+- To test: PvPManager relies on `hasPlayedBefore()`, which an EssentialsX source comment calls unreliable on current server software. If brand-new players don't get newbie protection, TheBox would have to run `/newbie add` on first join itself.
+- On the network this only touches the prison server. LuckPerms is shared, but the bulk updates only match the prison's one-letter rank groups and `p` groups.
 
 ### Economy and pacing
 Decided 2026-11-09, for a small server (3–10 players):
 - **A first run from A to Z takes about 100 hours of mining; A–C is a tutorial.** Time per rank-up: B 15 min, C 30 min, D 1 h, then 18 minutes more for each rank, up to 7.6 h for Z. Players reach M after about 24 hours and R after about 47. Cells add about 40 hours on top.
-- **Rank cost = hours for that rank × income per hour of the mine before it.** Measure each mine's income: mine for 5 minutes with realistic gear, `/sell all`, ×12. Aim for each mine to pay about 1.15× the one before. The placeholder costs in `ranks.yml` (+1000 per rank) don't follow this yet.
+- **Rank cost = hours for that rank × income per hour of the mine before it.** Measure each mine's income: mine for 5 minutes with realistic gear, `/sell all`, ×12. Aim for each mine to pay about 1.15× the one before. The placeholder costs in `ranks.yml` (+4000 per rank) don't follow this yet.
+- **Money scale** *(decided 2026-11-10)*: the starter mine pays about $4 a block, about $240 a minute. That's 4× the first draft, so every price is a whole number, and the first run ends in the millions (under the formula, Z costs about 7.6 h of the Y mine's income, about $3M). Scaling everything by the same factor changes nothing in play, so it was settled before players have balances.
+- **Sell prices** *(first draft 2026-11-10; suggested values in `README.md`, section 7)*: set once, then tune each mine through its block mix. Changing a price changes every mine that drops the item.
+  - Filler: cobblestone and stone $2, cobbled deepslate and deepslate $3. Stone matches cobblestone so Silk Touch and smelting add nothing. Deepslate pays 1.5× because it takes about 1.5× as long to mine: hardness 3 against stone's 1.5, plus a 6-tick pause after every block ([Breaking](https://minecraft.wiki/w/Breaking)).
+  - Ores: coal $12, raw iron $20 (ingot $24), redstone $6 a dust (4–5 per ore), raw gold $40 (ingot $48), diamond $200, emerald $320. Smelting adds 20%: worth doing, not a business.
+  - The top mine has to reach about 29× the starter mine (1.15^24). A late mine of half deepslate, 30% deepslate diamond ore and 20% deepslate emerald ore averages about $125 a block, about 33× the starter mine's $3.75. Deepslate ores take about twice as long to mine, though.
+  - Unpriced: logs and planks (tree farms in cells), all food (the free kit would become money), nuggets and storage blocks, and ore blocks (so Silk Touch on ores is worthless).
+- **Income levers to keep under control:**
+  - Fortune III averages 2.2× drops for coal, iron, gold, diamond and emerald, and 1.33× for redstone ([Fortune](https://minecraft.wiki/w/Fortune)), so it roughly doubles income in ore-heavy mines. Measure incomes without it and keep it out of the store. Decide later whether it becomes a late, expensive upgrade.
+  - No lava for players. It allows cobblestone generators in cells (weak: about half the starter mine's income), and obsidian for enchanting tables.
+  - No villagers (iron golem farms, librarians selling Fortune books) and no fishing rods (fishing loot includes enchanted books).
 - **Mines (planned):** one per rank (26), a wood mine, a lootbox mine, and event mines (setup in `README.md`, section 15).
   - PvP bands with mine levels: A–C no PvP; D–H level 1, I–M 2, N–R 3, S–W 4, X–Z 5.
   - Wood mine: logs, level 0, unlocked at `a`. Logs unpriced or very cheap, so it doesn't compete with the rank mines.
@@ -226,6 +260,7 @@ All of M1 passed in-game testing on 2026-11-07.
 
 **M1 follow-ups:**
 - [x] Display names: `/mine setname <mine> <name>` (MiniMessage, admin-only), shown in `/mines` and reset messages *(tested in the first player test, 2026-11-08)*
+- [x] `/thebox mine rename <mine> <id>` *(built 2026-11-10, untested)*: re-keys the mine and saves. It refuses an id that's taken, including by an inactive mine. LuckPerms grants still name the old `thebox.mine.<id>`, so it shows (click to copy) `lp bulkupdate all update permission thebox.mine.<new> "permission == thebox.mine.<old>"`, LuckPerms' documented way to rename a permission everywhere, temporary grants included. It's console-only, so TheBox can't run it itself.
 - [x] Reset when X% has been mined: `/mine setresetpercent <mine> <percent>`, counting block breaks inside the mine *(tested in the first player test, 2026-11-08)*
 - [x] Players without `thebox.mine.<id>` can't walk or teleport into a mine (`PlayerMoveEvent`). Walking tested in the first player test, 2026-11-08; teleports got their own handler afterwards (`PlayerTeleportEvent` has its own handler list), *untested*
 - [x] Announce resets to players in or within 32 blocks of the mine *(tested in the first player test, 2026-11-08)*
@@ -287,7 +322,7 @@ ranks:
 Steps:
 - [ ] 1. Test server: add LuckPerms via `downloadPlugins`. By hand, create groups `a`, `b`, `c` on a `ranks` track, and `p1`, `p2` on a `prestige` track (just a few groups while developing). This is a chance to learn LuckPerms itself.
 - [x] 2. LuckPerms API `compileOnly` dependency (`net.luckperms:api:5.5`), `depend: [WorldEdit, Vault, LuckPerms]`, look up the API through Bukkit's ServicesManager *(built 2026-11-08)*
-- [x] 3. `ranks.yml` (display names, costs) plus `/thebox rank setname|setcost|list|reload` *(tested in the first player test, 2026-11-08; doesn't touch LuckPerms)*. The first start writes a–z with placeholder costs (b = 1000, c = 2000, …).
+- [x] 3. `ranks.yml` (display names, costs) plus `/thebox rank setname|setcost|list|reload` *(tested in the first player test, 2026-11-08; doesn't touch LuckPerms)*. The first start writes a–z with placeholder costs (b = 4000, c = 8000, …; ×4 since 2026-11-10).
 - [x] 4. `/ranks`: the ladder, with the player's current rank and the next cost *(built 2026-11-08 after the first player test, untested)*. Costs shown at the player's prestige; the console sees base costs; admins also see rank ids. Replaces `/thebox rank list`.
 - [x] 5. `/rankup`: charge through Vault, then promote along the track *(tested in the first player test, 2026-11-08)*
 - [x] 6. `/rankup max` *(tested in the first player test, 2026-11-08)*
@@ -348,7 +383,7 @@ Designed 2026-11-09 (see Cell above). Reuses the market's region code. Steps:
 - [x] 1. Shared region module: `StallClearer` and the stall-region sync work on any region, so stalls and cells share them. New package `regions`: `Box` (a block box), `Regions` (WorldGuard sync, moved out of MarketManager), `RegionClearer` (was `StallClearer`)
 - [x] 2. Data: `cells.yml`, with tiers (sizes, prices, wall block) and cells (tier, plot, front space, owner, current size, helpers, old cell and its release time)
 - [x] 3. Admin: `/thebox cell create <tier> <cell>` (the plot from the selection: solid, big enough for the tier's largest room) and `/thebox cell setfront <cell>` (an empty selection touching one face of the plot). TheBox carves the starting room and creates the region `thebox_cell_<cell>` (owner and helpers as members, `mob-spawning deny`). Also `list`, `evict`, `delete`, `reload`
-- [x] 4. A free tier-1 cell on first join; if none is free, queue the player and warn admins. Built as: any player without a cell gets one when they join (so after a season wipe too), and online players without one get it as soon as a cell is set up or freed; no stored queue
+- [x] 4. A free tier-1 cell on first join; if none is free, queue the player and warn admins. Built as: any player without a cell gets one when they join (so after a season wipe too), and online players without one get it as soon as a cell is set up or freed; no stored queue. **Changed 2026-11-10:** cells are only handed out by `/cell`, when a player without one asks; joining just tells them to. Automatic hand-out gave the admin creating cells a cell of their own, and would let every one-time visitor keep a cell forever (nothing takes a cell back from an inactive player)
 - [x] 5. `/cell`, `/cell visit <player>`, `/cell trust|untrust`, `/cell info`, `/cell claim` (the market's impound menu)
 - [x] 6. Upgrades: `/cell upgrade` and its chest menu. Requires `thebox.cell.size.<n>`, charges through Vault, carves the next size away from the front, widens the region
 - [x] 7. Tier moves: a free cell in the next tier and 7 days to move (`/cell old`); then `/cell release` or expiry clears the old cell into the impound and resets it (refill with the tier's wall block, carve the starting room)
@@ -382,7 +417,7 @@ Testers found it rough around the edges, mostly because the world wasn't built y
   - [x] 2.3 Potions that only apply effects (poison, weakness) never fire a damage event: handle `PotionSplashEvent` and `AreaEffectCloudApplyEvent`. Only potions with a `HARMFUL` effect (`PotionEffectType#getEffectCategory()`; `getCategory()` is deprecated since 26.3) are blocked, so healing a friend still works. One shared check, `blockingMine`, serves hits and both potion events. No action-bar message for potions *(built 2026-11-08, untested)*
   - [ ] 2.4 Cancel at a low (early) priority; test that PvPManager doesn't combat-tag blocked hits. **Owner, in-game:** the PvP-levels check in `README.md` section 14, step 3
   - [x] 2.5 `README.md`: setting mine levels; PvP stays off in a mine until its level is set; a mine's WorldGuard region must match the mine exactly *(section 9, steps 4 and 11; test in section 14)*
-- [ ] 3. Seasons: the checklist in `README.md`, plus `/thebox market wipe` (see Seasons)
+- [x] 3. Seasons: the checklist in `README.md` (section 16) and `/thebox market wipe` *(both 2026-11-10, untested; see Seasons)*
 - [ ] 4. `/ranks` shows each rank's unlocks (see Rank ladder), then M6 (designed 2026-11-09, see M6)
 
 ### Per-command permissions *(added 2026-11-08)*
@@ -408,7 +443,7 @@ After M1–M6, plus M3's remaining step (chat tags). Deploy TheBox to the real s
 - **On-screen balance** *(asked for by players, 2026-11-08)*: a sidebar showing balance, rank and prestige. Either TheBox draws it with per-player scoreboards, which hides PvPManager's combat nametags because those are scoreboard teams, or TAB + PlaceholderAPI draws it from `%thebox_…%` placeholders that TheBox provides.
 - **Lifetime earnings** *(asked for by players, 2026-11-08)*: EssentialsX only stores the current balance. TheBox would count it itself, e.g. every `/sell` payout, saved per player. Still to decide what counts (just `/sell`, or shop sales and `/pay` too) and where it shows (a command, the sidebar, a leaderboard).
 - ~~Server layout~~: decided 2026-11-08, a Velocity network (lobby, prison, minigames), with Multiverse-Core inside the prison server for mine and market worlds. See [server architecture](../../server-architecture.md).
-- **Prestige across seasons** *(2026-11-08)*: does prestige survive a new season? Leaning yes (see Seasons).
+- ~~Prestige across seasons~~: decided 2026-11-10, a new season resets prestige too (see Seasons).
 - **Something to work toward** *(asked for by players, 2026-11-08)*: ask testers what they'd want. Candidates: rank unlocks shown in `/ranks`, the cut-down cells (see Cell), a marketplace unlocked at a higher rank (see Market).
 - ~~Sell prices~~: decided, global for now (see M2).
 - ~~Economy plugin~~: decided, **EssentialsX + VaultUnlocked** (see M2).
@@ -416,7 +451,7 @@ After M1–M6, plus M3's remaining step (chat tags). Deploy TheBox to the real s
 - **Monetization:** read Mojang's Usage Guidelines (https://www.minecraft.net/en-us/usage-guidelines) before planning any store. Any store should grant permissions, which TheBox honors, rather than TheBox selling things directly.
 - ~~Reset implementation~~: decided on a WorldEdit `EditSession` with a `RandomPattern`. Revisit only if huge mines cause lag.
 - Market: ~~build or integrate~~ decided, TheBox builds it (shops from QuickShop-Hikari). ~~What happens when rent lapses~~: decided, the impound flow (see Market). ~~Settings~~: decided (see Market): several marketplaces supported, 7-day prepay, 3-day grace, 30-day impound. Still open: actual rent prices (set per stall in-game).
-- Cells: ~~how players get one~~ (free on first join), ~~tiers and prestige~~ (3 tiers, cells survive prestige), ~~layout~~ (hand-built, registered). ~~How an upgrade removes the old boundary~~: decided, the walls are shaved back (see Cell). ~~Sizes, moves, doors~~: redesigned 2026-11-09 (see Cell). Still open: whether cell shops compete with the market.
+- Cells: ~~how players get one~~ (bought with `/cell buy`, $2,000 by default), ~~tiers and prestige~~ (3 tiers, cells survive prestige), ~~layout~~ (hand-built, registered). ~~How an upgrade removes the old boundary~~: decided, the walls are shaved back (see Cell). ~~Sizes, moves, doors~~: redesigned 2026-11-09 (see Cell). Still open: whether cell shops compete with the market.
 - ~~PvP~~: decided, every mine except the starter mine; normal drops; no special reset handling (see PvP).
 - Gangs: paused. Defaults agreed before pausing: up to 8 members, leader/officers/members, creating costs money, 2–5 letter tag in chat, anyone deposits but only leader and officers withdraw, up to 3 mutual allies, no friendly fire, `/gc` chat.
 - Black market: pinned, come back later.

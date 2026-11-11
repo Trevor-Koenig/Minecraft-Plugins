@@ -110,11 +110,11 @@ public class RankManager {
         }
     }
 
-    /** a to z. The costs (b = 1000, c = 2000, ...) are placeholders, meant to be replaced by hand. */
+    /** a to z. The costs (b = 4000, c = 8000, ...) are placeholders, meant to be replaced by hand. */
     private void createDefaults() {
         for (char letter = 'a'; letter <= 'z'; letter++) {
             Rank rank = new Rank(String.valueOf(letter));
-            rank.setCost((letter - 'a') * 1000);
+            rank.setCost((letter - 'a') * 4000);
             ranks.put(rank.getId(), rank);
         }
         plugin.getLogger().info("Created ranks.yml with ranks a to z and placeholder costs.");

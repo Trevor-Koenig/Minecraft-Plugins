@@ -217,9 +217,9 @@ WorldEdit is needed for selecting mine regions. `worldguard.*` is full WorldGuar
 
 ## 6. Rank names and costs
 
-The first start writes `plugins/TheBox/ranks.yml` with ranks `a` to `z` and **placeholder costs** (b = 1000, c = 2000, …). Replace them, either in-game:
+The first start writes `plugins/TheBox/ranks.yml` with ranks `a` to `z` and **placeholder costs** (b = 4000, c = 8000, …). Replace them, either in-game:
 ```
-/thebox rank setcost b 1500
+/thebox rank setcost b 3600
 /thebox rank setname b <gray>B
 ```
 `/ranks` shows the ladder; for admins it also shows each rank's id.
@@ -234,12 +234,31 @@ Or edit `ranks.yml` by hand, then run `/thebox rank reload`. Reload right after 
 
 Set a price per item (any item, not just blocks):
 ```
-/thebox price set cobblestone 0.5
-/thebox price set coal 2
-/thebox price set iron_ingot 10
+/thebox price set cobblestone 2
 /thebox price list
 ```
 `/thebox price remove <item>` makes an item unsellable again. Prices live in `plugins/TheBox/prices.yml`; after hand edits run `/thebox price reload`.
+
+**Suggested starting prices.** The starter mine should pay about $4 a block (about $240 a minute). Set these once, then tune each mine through its block mix: changing a price changes every mine at once.
+
+| Item | Price |
+|---|---|
+| `cobblestone`, `stone` | 2 |
+| `cobbled_deepslate`, `deepslate` | 3 (deepslate takes about 1.5× as long to mine) |
+| `redstone` | 6 (the ore drops 4–5) |
+| `coal` | 12 |
+| `raw_iron` / `iron_ingot` | 20 / 24 |
+| `raw_gold` / `gold_ingot` | 40 / 48 |
+| `diamond` | 200 |
+| `emerald` | 320 |
+
+For example, a starter mine of 85% stone, 12% coal ore and 3% iron ore averages about $3.75 a block.
+
+**Leave unpriced:**
+- logs and planks, because tree farms in cells would be endless money;
+- all food, above all whatever the free food kit gives;
+- nuggets and storage blocks (iron block, raw iron block, …);
+- ore blocks, so Silk Touch on ores is worthless.
 
 ## 8. World protection (WorldGuard, in-game)
 
@@ -293,6 +312,7 @@ Mines are created from a WorldEdit selection, so this part needs a player. Repea
    ```
    /thebox mine setname quarry <gray>The Quarry
    ```
+   The id (`quarry`) is separate from the name. To change the id later, use `/thebox mine rename quarry <new id>`. The permission changes with it (`thebox.mine.<new id>`), so TheBox shows a LuckPerms command to run in the console, which moves the existing grants to the new permission.
 7. Where players teleport to. Stand **outside** the mine (by default it's the center of the top):
    ```
    /thebox mine settp quarry
@@ -338,9 +358,9 @@ Players rent stalls in a market, build in them, and (with QuickShop-Hikari) run 
    You can create more markets later; with several, `/market` shows a menu to pick one.
 3. **Create the stalls.** For each one, select with `//wand` only the **empty space players may build in** (above the floor, inside the walls), then:
    ```
-   /thebox market stall create main s1 100
+   /thebox market stall create main s1 400
    ```
-   `100` is the rent per day. TheBox refuses a selection that has blocks in it or overlaps another stall, and creates the WorldGuard region `thebox_stall_main_s1`. The floor and walls stay outside the region, so renters can't break them.
+   `400` is the rent per day. TheBox refuses a selection that has blocks in it or overlaps another stall, and creates the WorldGuard region `thebox_stall_main_s1`. The floor and walls stay outside the region, so renters can't break them.
 4. **Let a rank rent stalls** (higher ranks inherit it):
    ```
    lp group c permission set thebox.market.rent true
@@ -381,24 +401,36 @@ How players make a shop ([QuickShop's guide](https://quickshop-community.github.
 
 Breaking the chest removes the shop. Trusted friends can make shops in the stall too; those shops, and their earnings, are theirs.
 
-**Admin tools:** `/thebox market stall evict main s1` clears a stall into its renter's impound right away. `stall setrent` changes the rent, `stall delete` removes a free stall.
+**Server booths** (no rent, no restocking): build a booth that looks like a stall, but **don't** register it with `stall create`. The market-wide region from step 1 protects it.
+1. Optional, and do it first: to show a server name as the shops' owner instead of you, set these in QuickShop's `config.yml`, then `/quickshop reload`. It only applies when a shop is switched to unlimited.
+   ```yaml
+   unlimited-shop-owner-change: true
+   unlimited-shop-owner-change-account: "[The Warden]"
+   ```
+   The brackets make it a made-up account. Without them, QuickShop looks the name up as a real Minecraft player. The quotes are needed because YAML reads `[...]` as a list.
+2. Make each shop as above, then look at it and run `/quickshop unlimited` for endless stock ([QuickShop's admin shop guide](https://quickshop-community.github.io/QuickShop-Hikari-Documents/docs/guides/getting-started/create-admin-shop)).
+3. Test with a non-admin account: the buyer pays, and no one receives it. With QuickShop's default `shop.pay-unlimited-shop-owners: false`, money spent at unlimited shops just disappears, so the booths are a money sink.
+- Never put an admin shop inside a registered stall: clearing a stall (unpaid rent, `stall evict`, `/market unrent`) deletes every shop in it.
+- Price every item above what `/sell` pays in `prices.yml`, or buying and selling in a loop makes endless money. Only make selling shops; a buying one is a second `/sell`.
+
+**Admin tools:** `/thebox market stall evict main s1` clears a stall into its renter's impound right away. `stall setrent` changes the rent, `stall delete` removes a free stall. `/thebox market wipe` is for a new season (section 16): it clears every stall and empties every impound.
 
 ## 11. Cells (in-game)
 
-Every player gets a cell, a room of their own, when they join. Cells come in tiers: a player grows their cell in place, then moves to a bigger cell in the next tier's cell block. You build solid blocks; TheBox carves the rooms.
+Each player can own one cell, a room of their own. They get it with `/cell buy` (the first cell costs $2,000 by default, see the prices below). Cells come in tiers: a player grows their cell in place, then moves to a bigger cell in the next tier's cell block. You build solid blocks; TheBox carves the rooms.
 
 **Sizes and prices** are in `plugins/TheBox/cells.yml` (run `/thebox cell reload` after editing). The defaults:
 
 | Tier | Sizes (room floor, width × depth) | Height |
 |---|---|---|
-| 1 | 3×3 (free) → 5×5 → 7×7 | 4 |
+| 1 | 3×3 ($2,000) → 5×5 → 7×7 | 3 |
 | 2 | 11×11 (a move) → 13×13 → 15×15 | 6 |
 | 3 | 19×19 (a move) → 21×21 → 23×23 | 8 |
 
-The prices are placeholders, like `ranks.yml`'s: set them before players arrive. Settle the sizes before you build, because plots are built for a tier's largest room.
+A player's first cell (tier 1's first size) costs $2,000 by default, so new players play a while before they get one: `/cell` tells them the price and `/cell buy` pays for it. Set its price to 0 to make it free. The other prices are placeholders, like `ranks.yml`'s: set them before players arrive. A good first-cell price is about what rank B costs. Settle the sizes before you build, because plots are built for a tier's largest room.
 
 1. **Build a cell block for each tier:** a mass of solid blocks (e.g. stone bricks; nothing that falls, like sand or gravel) on a floor, with a corridor along the front for players to walk in. Each cell needs a **plot** inside it: a solid box big enough for the tier's largest room plus the front wall. With the default sizes:
-   - tier 1: 7 wide, 8 deep (7 plus the front wall), 4 tall
+   - tier 1: 7 wide, 8 deep (7 plus the front wall), 3 tall
    - tier 2: 15 wide, 16 deep, 6 tall
    - tier 3: 23 wide, 24 deep, 8 tall
 
@@ -411,7 +443,7 @@ The prices are placeholders, like `ranks.yml`'s: set them before players arrive.
    - **The plot** starts at the first block in front of you, is centered on you, starts at your feet, and is the tier's size from step 1. TheBox remembers its most common block as the wall block, to rebuild the cell with later.
    - **The front space** (the strip of corridor the owner may decorate) is the air between the wall and you, as wide and tall as the plot. Stand right against the wall for a front space 1 deep, or a step or two back for 2 or 3. It's as tall as the plot so owners can redo their whole front wall: they can only build in the part of it behind their front space.
 
-   It checks everything before changing anything: the plot must be completely solid, the front space completely empty, and there must be at least one block of wall between this cell and any other. Then it carves the starting room behind the front wall and creates two WorldGuard regions: `thebox_cell_c1` (the room) and `thebox_cell_c1_front` (the front space plus the front wall). If a player is waiting for a cell, they get this one right away. The message says which way the front faces: if the cell is in the wrong spot, `/thebox cell delete c1` fills the plot back in, so you can try again.
+   It checks everything before changing anything: the plot must be completely solid, the front space completely empty, and there must be at least one block of wall between this cell and any other. Then it carves the starting room behind the front wall and creates two WorldGuard regions: `thebox_cell_c1` (the room) and `thebox_cell_c1_front` (the front space plus the front wall). The message says which way the front faces: if the cell is in the wrong spot, `/thebox cell delete c1` fills the plot back in, so you can try again.
 
    **Don't build doors, windows or patterns into a plot:** TheBox fills the whole plot with the wall block when it creates the cell, and again every time the cell is freed. Doors and windows go in the tier's front (step 4).
 3. **Or use selections,** for a plot that isn't the tier's size or a front space smaller than the plot's front. Select exactly the plot with `//wand` and run `/thebox cell create 1 c1`. Then select the front space (1 to 3 blocks deep, within the plot's width and height, starting at the plot's bottom layer so the entrance is level with the room's floor) and run `/thebox cell setfront c1`. It makes the same checks.
@@ -423,8 +455,8 @@ The prices are placeholders, like `ranks.yml`'s: set them before players arrive.
    - **It must fit the smallest size:** doors, windows and gaps go in the part of the front wall in front of the starting room (the middle 3 blocks in tier 1, 11 in tier 2, 19 in tier 3). Solid blocks, like a frame around the door, can go anywhere.
    - **Only plain blocks:** signs, banners, heads and containers are refused, because only the block is saved, not what's in it (a sign would come back blank). Item frames and armor stands aren't saved.
    - Cells with a shallower front space get the parts that fit. To go back to a plain front, save a plain cell.
-5. Repeat for every cell. Build a few more tier 1 cells than you have players, since everyone gets one. `/thebox cell list` shows them all.
-6. **Unlock the sizes by rank.** Size 1 is free; each later size needs `thebox.cell.size.<n>`, counted across all tiers. On the default schedule, a size every third rank:
+5. Repeat for every cell. Build a few more tier 1 cells than you have players: each player gets one the first time they type `/cell`, and keeps it. `/thebox cell list` shows them all.
+6. **Unlock the sizes by rank.** Size 1 only costs money; each later size needs `thebox.cell.size.<n>`, counted across all tiers. On the default schedule, a size every third rank:
    ```
    lp group d permission set thebox.cell.size.2 true
    lp group g permission set thebox.cell.size.3 true
@@ -439,7 +471,7 @@ The prices are placeholders, like `ranks.yml`'s: set them before players arrive.
 **Doors:** owners (and their helpers) can build in the front space and the front wall, e.g. an iron door with a button. WorldGuard stops everyone else using doors, buttons, levers and pressure plates in a region, so only they can open it. Owners can change the tier's front however they like. When the cell is freed, only what they added goes to their impound, and the tier's front is put back for the next owner. (An owner who breaks the default door keeps it: at most one door's worth per cell they own.) **Never set `use allow` on `__global__`:** its flags also apply inside regions that don't set them, so it would open every cell door. If spawn needs doors anyone can use, set `use allow` on the spawn region only.
 
 **How it works for players:**
-- `/cell` goes to their cell. `/cell visit <player>` goes to the front of someone else's (they have to be let in).
+- `/cell` goes to their cell. The first time, it tells them what a cell costs, and `/cell buy` pays for it (or, if the price is 0, `/cell` gives them one right away). Cells aren't handed out automatically, so players who join once and leave (and admins) don't use one up. If none is free, online admins are warned. `/cell visit <player>` goes to the front of someone else's (they have to be let in).
 - `/cell upgrade` opens a menu with the next size and its price. Within a tier, the room grows in place: the walls are carved back, sideways and away from the front, so the front wall and its door never move.
 - Moving up a tier gives them a new cell in the next tier's block. They keep the old one for 7 days to carry their things over (`/cell old`); shulker boxes keep their contents when broken. On `/cell release`, or when time's up, whatever's left goes to their impound (`/cell claim`), and the old cell is rebuilt as a starting room, with the tier's front, for the next player.
 - `/cell trust <player>` lets a friend build and open the door.
@@ -503,7 +535,7 @@ As a **non-op** player:
 6. Walking into a locked mine is blocked with "You haven't unlocked … yet."
 7. At the top rank, `/prestige` explains what prestiging does, and `/prestige confirm` does it: the player goes back to `a`, joins `p1`, and the server sees an announcement.
 8. `/market`, stand in a free stall, `/market rent`. Building works in your stall and nowhere else in the market. With `day-length-minutes: 2` and auto-renew off, the stall freezes after 2 minutes; after the grace period its contents show up in `/market claim`.
-9. A new player gets a cell when they join, and `/cell` takes them there. Building works in the room and the front space, not in the walls. With `thebox.cell.size.2`, `/cell upgrade` carves the room bigger and leaves what's in it alone. With the tier's front saved (section 11, step 4): the cell has its door, and another non-op player can't press its button. Add a block to the front and `/thebox cell evict` the cell: only the added block goes to the impound, and the door comes back. Check a cell facing a different way too: its door and buttons should face the corridor. As an admin, `create ... here` is refused when standing one block off center would make the plot touch its neighbor's, and `/thebox cell delete` on a free cell makes its plot solid again.
+9. A new player is told to type `/cell` when they join; `/cell` shows the price, `/cell buy` without enough money is refused, and with enough it takes the money, gives them a cell and takes them there. An admin who creates cells doesn't get one. Building works in the room and the front space, not in the walls. With `thebox.cell.size.2`, `/cell upgrade` carves the room bigger and leaves what's in it alone. With the tier's front saved (section 11, step 4): the cell has its door, and another non-op player can't press its button. Add a block to the front and `/thebox cell evict` the cell: only the added block goes to the impound, and the door comes back. Check a cell facing a different way too: its door and buttons should face the corridor. As an admin, `create ... here` is refused when standing one block off center would make the plot touch its neighbor's, and `/thebox cell delete` on a free cell makes its plot solid again.
 
 ## 15. Special events
 
@@ -539,6 +571,49 @@ lp user <name> permission settemp thebox.mine.loot true 10m
 - Special items aren't built yet: for now the lootbox mine drops its blocks like any other mine.
 
 Test as a non-op player: ops can enter every mine.
+
+## 16. New season (full reset)
+
+A new season makes everyone a new player again: rank A, no prestige, the starting balance, no cell, an empty inventory, and PvPManager's newbie protection.
+
+What you've set up stays:
+- mines, cell locations and prices, sell prices and rank costs;
+- stalls and the server booths;
+- LuckPerms groups and their permissions, and staff permissions.
+
+Player data is spread over several plugins, and some of it can only be deleted with the server stopped, so this takes one restart. Run the commands in the **console** (without `/`).
+
+1. **Close the server:** `whitelist on`, then `stop`. Until step 5, only whitelisted players and ops can join.
+2. **Back up** the whole server folder. Nothing below can be undone.
+3. **Delete player data** (server still stopped):
+
+   | Delete | What it resets |
+   |---|---|
+   | `world/players/data/`, `world/players/advancements/`, `world/players/stats/` | Inventories, ender chests, XP, spawn points, recipes, advancements, statistics |
+   | `plugins/Essentials/userdata/` | Balances (back to `starting-balance`), used kits, homes, nicknames, mail, mutes. Players get EssentialsX's first-join kit and message again. |
+   | `plugins/PvPManager/database.db` | PvP toggles and newbie protection (PvPManager's default storage) |
+4. **Start the server and wipe the in-game parts:**
+   ```
+   thebox cell wipe confirm
+   thebox market wipe confirm
+   lp listgroups
+   lp bulkupdate users delete "permission ~~ group._"
+   lp bulkupdate users delete "permission ~~ group.p_"
+   ```
+   - **The market wipe** clears and frees every rented stall and empties every impound, including what evicted cells left there. Nothing goes to the impound. Server booths aren't stalls, so they stay.
+   - **The bulk updates** remove every player's rank and prestige. Each one prints a confirmation command; run it.
+   - `~~` uses SQL `LIKE` patterns, where `_` matches exactly one character ([Bulk editing](https://luckperms.net/wiki/Bulk-Editing)). So the first command removes the rank groups `a`–`z`, and the second removes `p1`–`p9`. If you have `p10` or higher, also run it with `"permission ~~ group.p__"`.
+   - Check the `lp listgroups` output first: no other group may match. For example, a group named `pvp` would match `group.p__`.
+   - Use `users`, not `all`. The rank groups inherit each other, and `all` would break the ladder.
+   - Players are put back in `a` when they next join.
+
+   Finally, reset every mine with `thebox mine reset <mine>`.
+5. **Check, then open:** join with a non-op account. Check that you're rank A with the starting balance, `/cell` shows the price, you got the first-join kit, and you have newbie protection. Then run `whitelist off`.
+
+**Notes**
+- **To keep homes, nicknames, mail and mutes,** skip `userdata/` and run `eco reset ** 0` in step 4 instead. That resets everyone to `starting-balance`; check `/baltop` afterwards. Players then don't get the first-join kit again, and kits they've used stay on cooldown.
+- **The first-join kit** is EssentialsX's `newbies.kit` in `plugins/Essentials/config.yml` (default `tools`). Put the starter pickaxe in that kit.
+- **Newbie protection** only goes to players the server has never seen, so it depends on deleting the player files. Test it with a brand-new account at least once. An EssentialsX source comment says `hasPlayedBefore()`, which PvPManager uses, is unreliable on current server software.
 
 ## Network (later)
 

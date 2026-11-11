@@ -57,6 +57,9 @@ public class MineCommand {
             .then(Commands.literal("create")
                 .then(Commands.argument("id", StringArgumentType.word())
                     .executes(this::create)))
+            .then(Commands.literal("rename")
+                .then(mineArgument()
+                    .then(Commands.argument("id", StringArgumentType.word()).executes(this::rename))))
             .then(Commands.literal("delete")
                 .then(mineArgument().executes(this::delete)))
             .then(Commands.literal("list")
@@ -134,6 +137,7 @@ public class MineCommand {
             <yellow>/thebox mine setresetpercent \\<mine> \\<percent></yellow> <gray>- reset (after a 10-second countdown) once this % is mined (0 = off)</gray>
             <yellow>/thebox mine setlevel \\<mine> \\<level></yellow> <gray>- PvP level: players only fight in mines at their own level (0 = no PvP)</gray>
             <yellow>/thebox mine settp \\<mine></yellow> <gray>- set the teleport point to where you stand</gray>
+            <yellow>/thebox mine rename \\<mine> \\<id></yellow> <gray>- change a mine's id, and so its permission</gray>
             <yellow>/thebox mine delete \\<mine></yellow> <gray>- delete a mine (blocks stay)</gray>
             <yellow>/thebox mine reload</yellow> <gray>- re-read mines.yml</gray>""");
         return Command.SINGLE_SUCCESS;
@@ -173,6 +177,25 @@ public class MineCommand {
         Mine mine = getMine(ctx);
         mines.remove(mine);
         ctx.getSource().getSender().sendRichMessage("<green>Deleted mine <white>" + mine.getId() + "</white>. Its blocks were left as they are.");
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private int rename(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        Mine mine = getMine(ctx);
+        String oldId = mine.getId();
+        String newId = StringArgumentType.getString(ctx, "id");
+        if (!MineManager.isValidId(newId)) {
+            throw INVALID_ID.create();
+        }
+        if (!mines.rename(mine, newId)) {
+            throw MINE_EXISTS.create(newId);
+        }
+        // LuckPerms grants still name the old permission. LuckPerms' bulk update renames a permission everywhere
+        // (groups and users, keeping expiry and contexts), but only from the console, with a confirmation code.
+        String update = "lp bulkupdate all update permission thebox.mine." + newId + " \"permission == thebox.mine." + oldId + "\"";
+        ctx.getSource().getSender().sendRichMessage("<green>Renamed mine <white>" + oldId + "</white> to <white>" + newId + "</white>. "
+            + "<gray>Players now need <white>thebox.mine." + newId + "</white>. To move the existing grants, run this in the console "
+            + "(click to copy): <click:copy_to_clipboard:'" + update + "'><yellow>" + update + "</yellow></click>");
         return Command.SINGLE_SUCCESS;
     }
 

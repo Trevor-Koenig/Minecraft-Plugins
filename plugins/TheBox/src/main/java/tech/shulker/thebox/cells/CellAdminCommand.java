@@ -182,7 +182,7 @@ public class CellAdminCommand {
         cells.setFront(cell, front, facing);
         player.sendRichMessage("<green>Created cell <white>" + id + "</white> in tier " + tier.number() + ": plot " + plot.describe()
             + " (wall block " + wallBlock + "), front facing " + facing.name().toLowerCase() + ", front space " + distance
-            + " deep. Its starting room is carved." + (cell.isFree() ? "" : " It was handed to a player waiting for a cell.")
+            + " deep. Its starting room is carved."
             + " <gray>Wrong spot? <yellow>/thebox cell delete " + id + "</yellow> fills it back in.");
         return Command.SINGLE_SUCCESS;
     }
@@ -299,8 +299,7 @@ public class CellAdminCommand {
 
         cells.setFront(cell, front, facing);
         player.sendRichMessage("<green>Cell <white>" + cell.getId() + "</white> is ready: its front faces " + facing.name().toLowerCase()
-            + " and its starting room is carved. Regions: <white>" + cell.getRoomRegionId() + "</white> and <white>" + cell.getFrontRegionId() + "</white>."
-            + (cell.isFree() ? "" : " It was handed to a player waiting for a cell."));
+            + " and its starting room is carved. Regions: <white>" + cell.getRoomRegionId() + "</white> and <white>" + cell.getFrontRegionId() + "</white>.");
         return Command.SINGLE_SUCCESS;
     }
 
@@ -436,7 +435,7 @@ public class CellAdminCommand {
 
     private int wipeInfo(CommandContext<CommandSourceStack> ctx) {
         ctx.getSource().getSender().sendRichMessage("<gold>This clears every cell for a new season</gold><gray>: everything in them is deleted "
-            + "(nothing goes to the impound), and every cell is rebuilt as an empty starting room. Players get a new cell when they next join. "
+            + "(nothing goes to the impound), and every cell is rebuilt as an empty starting room. Players get a new cell with /cell. "
             + "Back up first. Run <yellow>/thebox cell wipe confirm</yellow> to do it.");
         return Command.SINGLE_SUCCESS;
     }

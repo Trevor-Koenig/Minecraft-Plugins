@@ -45,6 +45,7 @@ public class CellCommand {
         return Commands.literal("cell")
             .executes(this::home)
             .then(Commands.literal("help").executes(this::help))
+            .then(Commands.literal("buy").executes(this::buy))
             .then(Commands.literal("info").executes(this::info))
             .then(Commands.literal("visit")
                 .then(Commands.argument("player", StringArgumentType.word())
@@ -96,18 +97,70 @@ public class CellCommand {
         Player player = ctx.getSource().getPlayerOrThrow();
         UUID uuid = player.getUniqueId();
         Cell cell = cells.currentCell(uuid);
-        if (cell == null && cells.oldCell(uuid) == null) {
-            // No cell yet (none was free when they joined): try again now.
-            cell = cells.assignStarterCell(uuid);
-            if (cell != null) {
-                player.sendRichMessage("<green>You got a cell!");
-            }
-        }
         if (cell == null) {
-            throw fail("You don't have a cell yet: every cell is taken. You'll get one as soon as one is free.");
+            // No cell yet: this is how players get one (see CellManager.onJoin for why it isn't automatic).
+            checkStarterCellFree(player);
+            double price = cells.starterPrice();
+            if (price > 0) {
+                player.sendRichMessage("<gold>You don't have a cell yet.</gold> Your own cell costs <price>: type <yellow>/cell buy</yellow> to get it.",
+                    Placeholder.unparsed("price", VaultEconomy.format(player, price)));
+                return Command.SINGLE_SUCCESS;
+            }
+            cell = giveStarterCell(player, null, 0);
         }
         teleport(player, cells.home(cell));
         return Command.SINGLE_SUCCESS;
+    }
+
+    /** /cell buy: pays for a first cell (the price of tier 1's first size) and goes there. */
+    private int buy(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        Player player = ctx.getSource().getPlayerOrThrow();
+        if (cells.currentCell(player.getUniqueId()) != null) {
+            throw fail("You already have a cell: /cell takes you there.");
+        }
+        // Check a cell is free before taking any money.
+        checkStarterCellFree(player);
+        double price = cells.starterPrice();
+        Economy economy = null;
+        if (price > 0) {
+            economy = VaultEconomy.find(player.getServer());
+            if (economy == null) {
+                throw fail("Cells can't be bought right now: no economy plugin is installed.");
+            }
+            if (!economy.has(player, price)) {
+                throw fail("Your own cell costs <price>. You have <balance>.",
+                    Placeholder.unparsed("price", economy.format(price)), Placeholder.unparsed("balance", economy.format(economy.getBalance(player))));
+            }
+            if (!economy.withdrawPlayer(player, price).transactionSuccess()) {
+                throw fail("The economy refused the payment.");
+            }
+        }
+        Cell cell = giveStarterCell(player, economy, price);
+        teleport(player, cells.home(cell));
+        return Command.SINGLE_SUCCESS;
+    }
+
+    /** Fails (and tells the admins) if no starting cell is free. */
+    private void checkStarterCellFree(Player player) throws CommandSyntaxException {
+        if (!cells.hasFreeStarterCell()) {
+            cells.warnAdmins(player.getName() + " wants a cell, but every starting cell is taken. Build and register more (/thebox cell create).");
+            throw fail("Every cell is taken right now. The admins have been told; try again later.");
+        }
+    }
+
+    /** Hands the player a free starting cell they've paid {@code price} for (refunded if, after all, none is free). */
+    private Cell giveStarterCell(Player player, Economy economy, double price) throws CommandSyntaxException {
+        Cell cell = cells.assignStarterCell(player.getUniqueId());
+        if (cell == null) {
+            if (economy != null && price > 0) {
+                economy.depositPlayer(player, price);
+            }
+            throw fail("Every cell is taken right now. Try again later.");
+        }
+        logger.info(player.getName() + " got cell " + cell.getId() + (price > 0 ? " for " + price : "") + ".");
+        player.sendRichMessage("<green>Welcome to your cell!</green> <gray><yellow>/cell</yellow> brings you back here, and "
+            + "<yellow>/cell help</yellow> shows what else you can do.");
+        return cell;
     }
 
     private int visit(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
@@ -154,6 +207,7 @@ public class CellCommand {
         ctx.getSource().getSender().sendRichMessage("""
             <gold>Cells:</gold>
             <yellow>/cell</yellow> <gray>- go to your cell</gray>
+            <yellow>/cell buy</yellow> <gray>- get your own cell, if you don't have one yet</gray>
             <yellow>/cell info</yellow> <gray>- your cell and its next upgrade</gray>
             <yellow>/cell upgrade</yellow> <gray>- make your cell bigger</gray>
             <yellow>/cell visit \\<player></yellow> <gray>- go to the front of someone's cell</gray>
@@ -335,7 +389,7 @@ public class CellCommand {
     private Cell ownCell(Player player) throws CommandSyntaxException {
         Cell cell = cells.currentCell(player.getUniqueId());
         if (cell == null) {
-            throw fail("You don't have a cell yet. /cell gets you one if any is free.");
+            throw fail("You don't have a cell yet. /cell tells you how to get one.");
         }
         if (cells.sizeOf(cell) == null) {
             throw fail("Your cell's tier is missing from cells.yml. Tell an admin.");
