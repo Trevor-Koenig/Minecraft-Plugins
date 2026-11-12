@@ -20,18 +20,26 @@ The plugin is `build/libs/TheBox-<version>.jar`. It doesn't bundle its dependenc
 
 With the server **stopped**, put these jars directly in the server's `plugins/` folder (Paper ignores subfolders). The exact versions tested with TheBox are listed in the `downloadPlugins` block of [build.gradle.kts](build.gradle.kts).
 
+**Required.** TheBox won't start without the four marked *hard dependency*: they're its `depend` list in `plugin.yml`. The others are needed for the setup in this guide.
+
 | Plugin | Why |
 |---|---|
 | TheBox | This plugin |
-| WorldEdit | Selecting mine regions, filling mines |
-| WorldGuard | Protecting the world: where players can build and mine |
-| VaultUnlocked | Connects TheBox to the economy (registers as "Vault") |
-| EssentialsX | The economy (balances, `/pay`, `/balance`, `/eco`) |
-| LuckPerms | Ranks, prestige and permissions |
+| WorldEdit *(hard dependency)* | Selecting mine regions, filling mines |
+| WorldGuard *(hard dependency)* | Protecting the world: where players can build and mine. TheBox creates the regions for stalls and cells. |
+| VaultUnlocked *(hard dependency)* | Connects TheBox to the economy (registers as "Vault") |
+| LuckPerms *(hard dependency)* | Ranks, prestige and permissions |
+| EssentialsX | The economy behind Vault (balances, `/pay`, `/balance`, `/eco`), and kits |
+| EssentialsX Spawn | Gives new players the starter kit on their first join (section 13). It must be the same build as EssentialsX, or it warns "Version mismatch!", so download both from the same EssentialsX release or CI build. |
 | PvPManager | Combat tagging: no commands or logging out mid-fight |
-| QuickShop-Hikari *(optional)* | Player chest shops in market stalls |
-| PlayerParticles *(optional)* | Particle cosmetics for prestige rewards. Check that it supports your Minecraft version first. |
-| Multiverse-Core *(optional)* | Several worlds (say, one for mines and one for the market) |
+
+**Optional.**
+
+| Plugin | Why |
+|---|---|
+| Multiverse-Core | Several worlds (say, one for mines and one for the market), and where new players first arrive (section 2) |
+| QuickShop-Hikari | Player chest shops in market stalls, and the server booths |
+| PlayerParticles | Particle cosmetics for prestige rewards. Check that it supports your Minecraft version first. |
 
 Start the server once so every plugin writes its config files, then stop it.
 
@@ -48,6 +56,30 @@ Start the server once so every plugin writes its config files, then stop it.
 - `currency-symbol: '$'`.
 - `disabled-commands:`: add `worth`. EssentialsX's `/worth` shows prices from its own `worth.yml`, which TheBox doesn't use, so players would see wrong prices. TheBox's version is `/sell worth`.
 - EssentialsX also has a `/sell`. Its config says other plugins' commands get priority automatically, so TheBox's should win. If `/sell` ever shows EssentialsX's usage message instead, add `sell` to `disabled-commands` too.
+- **EssentialsX Spawn, limited to the starter kit,** so it doesn't touch where players spawn. That stays with Multiverse (below) or vanilla:
+  ```yaml
+  respawn-listener-priority: none   # EssentialsX stays out of respawns
+  newbies:
+    spawnpoint: none                # no teleport on first join
+    kit: starter                    # the kit from section 13
+  ```
+  - Leave `spawn-join-listener-priority` as it is (`high`). That listener is the one that gives the kit, so `none` would turn the kit off too.
+  - `newbies.announce-format` broadcasts "Welcome <player> to the server!" on a first join. Set it to `''` to turn that off.
+  - Both listener settings only take effect after a restart.
+
+**`plugins/Multiverse-Core/config.yml`** *(with Multiverse-Core)*: where new players first arrive. Without this, vanilla puts first-time players on the highest block above the world spawn, such as the roof of a spawn building.
+```yaml
+spawn:
+  first-spawn-override: true
+  first-spawn-location: <your spawn world>
+```
+Then, in-game, stand where players should arrive and run `/mv setspawn`. Respawns use the same spot.
+- **If brand-new players still land on the roof:** Multiverse detects first joins with `hasPlayedBefore()`, which EssentialsX's developers say no longer works on current server software ([EssentialsX #6466](https://github.com/EssentialsX/Essentials/issues/6466)). Let EssentialsX Spawn place new players instead:
+  1. In EssentialsX's config, set `newbies.spawnpoint: newbies`.
+  2. In-game, stand where players should arrive and run `/setspawn newbies`.
+  3. Set `first-spawn-override: false` here.
+
+  Multiverse still handles respawns.
 
 **`plugins/LuckPerms/config.yml`** *(optional, privacy)*
 - To stop LuckPerms ever uploading data (`/lp editor`, `/lp tree`, `/lp verbose upload`, `/lp export --upload`), add these two keys. They aren't in the default file. Point them at an address where nothing is running:
@@ -225,9 +257,45 @@ The first start writes `plugins/TheBox/ranks.yml` with ranks `a` to `z` and **pl
 `/ranks` shows the ladder; for admins it also shows each rank's id.
 Or edit `ranks.yml` by hand, then run `/thebox rank reload`. Reload right after editing: the next `/thebox rank` change saves the file and would overwrite unsaved hand edits.
 
+**Suggested costs.** A rank costs the hours planned for it × an hour's income in the mine before it:
+- **Hours:** B 15 minutes, C 30 minutes, D 1 hour, then 18 minutes more for each rank, up to 7.6 hours for Z. A first run from A to Z takes about 100 hours.
+- **Income:** these costs assume the starter mine pays about $14,400 an hour (section 7's $4 a block) and each mine about 1.15× the one before.
+
+Costs start about 2.3× apart and end about 1.2× apart. Z costs $3.1M, and the whole ladder about $17.9M. Paste into the console:
+```
+thebox rank setcost b 3600
+thebox rank setcost c 8300
+thebox rank setcost d 19000
+thebox rank setcost e 28000
+thebox rank setcost f 40000
+thebox rank setcost g 55000
+thebox rank setcost h 73000
+thebox rank setcost i 96000
+thebox rank setcost j 120000
+thebox rank setcost k 160000
+thebox rank setcost l 200000
+thebox rank setcost m 250000
+thebox rank setcost n 310000
+thebox rank setcost o 380000
+thebox rank setcost p 470000
+thebox rank setcost q 570000
+thebox rank setcost r 700000
+thebox rank setcost s 850000
+thebox rank setcost t 1000000
+thebox rank setcost u 1300000
+thebox rank setcost v 1500000
+thebox rank setcost w 1800000
+thebox rank setcost x 2200000
+thebox rank setcost y 2600000
+thebox rank setcost z 3100000
+```
+- To check a mine, mine it for 5 minutes with the gear players would have there, `/sell all`, and multiply by 12 for its hourly income. If it's far off, change its block mix rather than the cost.
+- For a steeper or flatter ladder, make each mine more or less than 1.15× richer than the one before, and work the costs out again.
+- Cell prices follow these costs (section 11).
+
 - `cost` is what it costs to rank up **to** that rank. Rank `a` is where everyone starts, so its cost is never charged.
 - Costs go up with prestige: each prestige level adds `prestige-multiplier` × the cost (default 0.5, so Prestige 2 pays 200%). Change it with `/thebox rank setprestigemultiplier 0.25`.
-- Names use [MiniMessage](https://docs.advntr.dev/minimessage/format.html) colors, e.g. `<light_purple>Endermite`.
+- Names use [MiniMessage](https://docs.papermc.io/adventure/minimessage/format/) colors, e.g. `<light_purple>Endermite`.
 - Keep the ranks in `ranks.yml` in the same order as the `ranks` track. A rank that's on the track but missing from `ranks.yml` blocks `/rankup` until it's added.
 
 ## 7. Sell prices
@@ -301,13 +369,19 @@ Mines are created from a WorldEdit selection, so this part needs a player. Repea
    /rg flag mine_quarry mob-spawning deny
    /rg flag mine_quarry pvp allow
    ```
-   Players can now break blocks in the mine, but not place any (placing stays protected). **PvP is on in every mine except the starter mine** (the one rank `a` unlocks), so new players are safe; for that one, skip the `pvp allow` line. In the other mines, players only fight others at the mine's level (step 11). Players who die drop their items as usual. Make the region from the **same selection** as the mine: the level rule only covers the mine itself, so if the region is bigger, the extra strip has PvP without it. If the mine sits inside another region that has its own flags, raise the mine's priority: `/rg setpriority mine_quarry 10`.
+   Players can now break blocks in the mine, but not place any (placing stays protected), so they can't place torches either. Instead, TheBox gives everyone within 8 blocks of a mine Night Vision, sideways or above, and takes it away when they're farther. The edge is out in the open, not at the mine itself, so walking around the rim or hopping in and out of holes doesn't flash it on and off. A Night Vision potion a player drank keeps working. **PvP is on in every mine except the starter mine** (the one rank `a` unlocks), so new players are safe; for that one, skip the `pvp allow` line. In the other mines, players only fight others at the mine's level (step 11). Players who die drop their items as usual. Make the region from the **same selection** as the mine: the level rule only covers the mine itself, so if the region is bigger, the extra strip has PvP without it. If the mine sits inside another region that has its own flags, raise the mine's priority: `/rg setpriority mine_quarry 10`.
 5. Set the block mix. Weights are relative, so these two make 70% stone and 30% coal ore:
    ```
    /thebox mine addblock quarry stone 70
    /thebox mine addblock quarry coal_ore 30
    ```
    `/thebox mine removeblock quarry <block>` takes a block out of the mix.
+
+   The outside of the mine hides its ores; otherwise any ore on the surface goes to whoever arrives first.
+   - At every reset, the faces players can see get one block instead of the mix. That's any edge block whose neighbour just outside the mine is see-through: the top of a walled pit, plus the sides or bottom if they're glass or open.
+   - By default that block is the mix's most common one (the first listed, on a tie), so there's nothing to set for most mines. `/thebox mine list` shows each mine's surface.
+   - To pick the block yourself: `/thebox mine setsurface quarry stone`. `setsurface quarry auto` goes back to the most common block, and `setsurface quarry none` turns the surface off, for example for an event mine that should show its ores.
+   - The surface takes the place of a little of the mix: about one layer, so 5% of a 20-tall mine.
 6. The name players see:
    ```
    /thebox mine setname quarry <gray>The Quarry
@@ -429,6 +503,20 @@ Each player can own one cell, a room of their own. They get it with `/cell buy` 
 
 A player's first cell (tier 1's first size) costs $2,000 by default, so new players play a while before they get one: `/cell` tells them the price and `/cell buy` pays for it. Set its price to 0 to make it free. The other prices are placeholders, like `ranks.yml`'s: set them before players arrive. A good first-cell price is about what rank B costs. Settle the sizes before you build, because plots are built for a tier's largest room.
 
+**Suggested prices**, to go with section 6's rank costs. Each size costs about what the rank that unlocks it costs (step 6), and a move to the next tier twice that, which is why size 7 costs more than size 8. Together they add about 40 hours to the ladder. Set each size's `price` under `tiers` in `cells.yml`, then run `/thebox cell reload`.
+
+| Size | Tier | Floor | Unlocked at | Price |
+|---|---|---|---|---|
+| 1 | 1 | 3×3 | (start) | $2,000 |
+| 2 | 1 | 5×5 | D | $19,000 |
+| 3 | 1 | 7×7 | G | $55,000 |
+| 4 | 2 | 11×11 (a move) | J | $240,000 |
+| 5 | 2 | 13×13 | M | $250,000 |
+| 6 | 2 | 15×15 | P | $470,000 |
+| 7 | 3 | 19×19 (a move) | S | $1,700,000 |
+| 8 | 3 | 21×21 | V | $1,500,000 |
+| 9 | 3 | 23×23 | Y | $2,600,000 |
+
 1. **Build a cell block for each tier:** a mass of solid blocks (e.g. stone bricks; nothing that falls, like sand or gravel) on a floor, with a corridor along the front for players to walk in. Each cell needs a **plot** inside it: a solid box big enough for the tier's largest room plus the front wall. With the default sizes:
    - tier 1: 7 wide, 8 deep (7 plus the front wall), 3 tall
    - tier 2: 15 wide, 16 deep, 6 tall
@@ -471,7 +559,7 @@ A player's first cell (tier 1's first size) costs $2,000 by default, so new play
 **Doors:** owners (and their helpers) can build in the front space and the front wall, e.g. an iron door with a button. WorldGuard stops everyone else using doors, buttons, levers and pressure plates in a region, so only they can open it. Owners can change the tier's front however they like. When the cell is freed, only what they added goes to their impound, and the tier's front is put back for the next owner. (An owner who breaks the default door keeps it: at most one door's worth per cell they own.) **Never set `use allow` on `__global__`:** its flags also apply inside regions that don't set them, so it would open every cell door. If spawn needs doors anyone can use, set `use allow` on the spawn region only.
 
 **How it works for players:**
-- `/cell` goes to their cell. The first time, it tells them what a cell costs, and `/cell buy` pays for it (or, if the price is 0, `/cell` gives them one right away). Cells aren't handed out automatically, so players who join once and leave (and admins) don't use one up. If none is free, online admins are warned. `/cell visit <player>` goes to the front of someone else's (they have to be let in).
+- `/cell` takes them inside their cell, just behind the front wall. Make sure each tier's front opens from inside too, for example with a button inside the room as well as outside (section 11, step 4: `savefront` saves the room's first layer). Otherwise players can't get out. The first time, it tells them what a cell costs, and `/cell buy` pays for it (or, if the price is 0, `/cell` gives them one right away). Cells aren't handed out automatically, so players who join once and leave (and admins) don't use one up. If none is free, online admins are warned. `/cell visit <player>` goes to the front of someone else's (they have to be let in).
 - `/cell upgrade` opens a menu with the next size and its price. Within a tier, the room grows in place: the walls are carved back, sideways and away from the front, so the front wall and its door never move.
 - Moving up a tier gives them a new cell in the next tier's block. They keep the old one for 7 days to carry their things over (`/cell old`); shulker boxes keep their contents when broken. On `/cell release`, or when time's up, whatever's left goes to their impound (`/cell claim`), and the old cell is rebuilt as a starting room, with the tier's front, for the next player.
 - `/cell trust <player>` lets a friend build and open the door.
@@ -498,7 +586,18 @@ lp group p3 permission set playerparticles.style.wings true
 
 Players pick their particles with `/pp`.
 
-## 13. Food
+## 13. Starter kit and food
+
+**A starter kit on the first join.** New players start with $0, so EssentialsX Spawn gives them a stone pickaxe to start mining. It's the `newbies.kit` set in section 2. Define the kit in `plugins/Essentials/kits.yml`, under `kits:`, then run `/essentials reload`:
+```yaml
+  starter:
+    delay: -1
+    items:
+      - stone_pickaxe 1
+```
+- **Grant no permission for it.** The first-join kit is "given regardless of cost and permissions". If players also had `essentials.kits.starter`, they could claim it a second time with `/kit starter`.
+- **Only players EssentialsX has never seen get it.** It decides that from its own user data, so a season reset gives everyone the kit again, because it deletes `plugins/Essentials/userdata/` (section 16).
+- **To test,** use an account that has never joined. Or, with the server stopped, delete that account's file in `plugins/Essentials/userdata/`.
 
 Mining all day uses up hunger fast. Two EssentialsX features cover it, with no TheBox setup needed:
 
@@ -526,16 +625,16 @@ Its cooldown is `heal-cooldown` in `plugins/Essentials/config.yml` (default 60 s
 ## 14. Check that it works
 
 As a **non-op** player:
-1. Join, then in the console run `lp user <name> info`. The player should be in groups `default` and `a`. `/balance`, `/baltop` and `/pay` work.
+1. Join, then in the console run `lp user <name> info`. The player should be in groups `default` and `a`. `/balance`, `/baltop` and `/pay` work. With an account that has never joined: you arrive at the spawn point, not on a roof, and get the starter kit.
 2. Breaking or placing blocks outside a mine is blocked (WorldGuard says so in chat).
-3. `/mines` lists the unlocked mines; `/mines quarry` teleports there. Breaking blocks in the mine works; placing them doesn't. PvP works in every mine except the starter mine, and nowhere else. After hitting another player, `/mines` is blocked for 15 seconds, and logging out in that time kills you.
+3. `/mines` lists the unlocked mines; `/mines quarry` teleports there. Breaking blocks in the mine works; placing them doesn't. Within 8 blocks of the mine you have Night Vision (an ∞ icon at the top right). It stays while you walk around the rim, and goes once you're farther away. PvP works in every mine except the starter mine, and nowhere else. After hitting another player, `/mines` is blocked for 15 seconds, and logging out in that time kills you.
    - PvP levels need two non-op players a mine apart. In the lower player's mine, neither can hit the other (melee, arrows, or a splash or lingering potion of poison); the attacker sees "You can only fight players at your own level in this mine." Afterwards `/mines` still works for both: a blocked hit must not combat-tag anyone.
 4. Mine some blocks, then run `/sell all` (or `/sell hand`, `/sell worth`).
 5. `/ranks` shows the ladder with the player's rank marked and the next rank's cost. `/rankup` buys the next rank (`/rankup max` buys as many as you can afford). The whole server sees an announcement.
 6. Walking into a locked mine is blocked with "You haven't unlocked … yet."
 7. At the top rank, `/prestige` explains what prestiging does, and `/prestige confirm` does it: the player goes back to `a`, joins `p1`, and the server sees an announcement.
 8. `/market`, stand in a free stall, `/market rent`. Building works in your stall and nowhere else in the market. With `day-length-minutes: 2` and auto-renew off, the stall freezes after 2 minutes; after the grace period its contents show up in `/market claim`.
-9. A new player is told to type `/cell` when they join; `/cell` shows the price, `/cell buy` without enough money is refused, and with enough it takes the money, gives them a cell and takes them there. An admin who creates cells doesn't get one. Building works in the room and the front space, not in the walls. With `thebox.cell.size.2`, `/cell upgrade` carves the room bigger and leaves what's in it alone. With the tier's front saved (section 11, step 4): the cell has its door, and another non-op player can't press its button. Add a block to the front and `/thebox cell evict` the cell: only the added block goes to the impound, and the door comes back. Check a cell facing a different way too: its door and buttons should face the corridor. As an admin, `create ... here` is refused when standing one block off center would make the plot touch its neighbor's, and `/thebox cell delete` on a free cell makes its plot solid again.
+9. A new player is told to type `/cell` when they join; `/cell` shows the price, `/cell buy` without enough money is refused, and with enough it takes the money, gives them a cell and takes them into it. The door opens from inside, with the inside button, and from outside. An admin who creates cells doesn't get one. Building works in the room and the front space, not in the walls. With `thebox.cell.size.2`, `/cell upgrade` carves the room bigger and leaves what's in it alone. With the tier's front saved (section 11, step 4): the cell has its door, and another non-op player can't press its button. Add a block to the front and `/thebox cell evict` the cell: only the added block goes to the impound, and the door comes back. Check a cell facing a different way too: its door and buttons should face the corridor. As an admin, `create ... here` is refused when standing one block off center would make the plot touch its neighbor's, and `/thebox cell delete` on a free cell makes its plot solid again.
 
 ## 15. Special events
 
@@ -590,7 +689,7 @@ Player data is spread over several plugins, and some of it can only be deleted w
    | Delete | What it resets |
    |---|---|
    | `world/players/data/`, `world/players/advancements/`, `world/players/stats/` | Inventories, ender chests, XP, spawn points, recipes, advancements, statistics |
-   | `plugins/Essentials/userdata/` | Balances (back to `starting-balance`), used kits, homes, nicknames, mail, mutes. Players get EssentialsX's first-join kit and message again. |
+   | `plugins/Essentials/userdata/` | Balances (back to `starting-balance`), used kits, homes, nicknames, mail, mutes. Everyone counts as new again, so they get the starter kit. |
    | `plugins/PvPManager/database.db` | PvP toggles and newbie protection (PvPManager's default storage) |
 4. **Start the server and wipe the in-game parts:**
    ```
@@ -608,11 +707,11 @@ Player data is spread over several plugins, and some of it can only be deleted w
    - Players are put back in `a` when they next join.
 
    Finally, reset every mine with `thebox mine reset <mine>`.
-5. **Check, then open:** join with a non-op account. Check that you're rank A with the starting balance, `/cell` shows the price, you got the first-join kit, and you have newbie protection. Then run `whitelist off`.
+5. **Check, then open:** join with a non-op account. Check that you arrive inside the spawn building, you're rank A with the starting balance, `/cell` shows the price, you got the starter kit, and you have newbie protection. Then run `whitelist off`.
 
 **Notes**
-- **To keep homes, nicknames, mail and mutes,** skip `userdata/` and run `eco reset ** 0` in step 4 instead. That resets everyone to `starting-balance`; check `/baltop` afterwards. Players then don't get the first-join kit again, and kits they've used stay on cooldown.
-- **The first-join kit** is EssentialsX's `newbies.kit` in `plugins/Essentials/config.yml` (default `tools`). Put the starter pickaxe in that kit.
+- **To keep homes, nicknames, mail and mutes,** skip `userdata/` and run `eco reset ** 0` in step 4 instead. That resets everyone to `starting-balance`; check `/baltop` afterwards. Players then don't get the starter kit again, because EssentialsX still knows them, and kits they've used stay on cooldown.
+- **Where new players arrive** is Multiverse's `first-spawn-override` (section 2). Multiverse decides who's new from the vanilla player files that step 3 deletes.
 - **Newbie protection** only goes to players the server has never seen, so it depends on deleting the player files. Test it with a brand-new account at least once. An EssentialsX source comment says `hasPlayedBefore()`, which PvPManager uses, is unreliable on current server software.
 
 ## Network (later)

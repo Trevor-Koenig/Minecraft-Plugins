@@ -91,6 +91,12 @@ public class MineCommand {
                 .then(mineArgument()
                     .then(Commands.argument("level", IntegerArgumentType.integer(0))
                         .executes(this::setLevel))))
+            .then(Commands.literal("setsurface")
+                .then(mineArgument()
+                    .then(Commands.literal("auto").executes(ctx -> setSurface(ctx, null, false)))
+                    .then(Commands.literal("none").executes(ctx -> setSurface(ctx, null, true)))
+                    .then(Commands.argument("block", ArgumentTypes.resource(RegistryKey.BLOCK))
+                        .executes(ctx -> setSurface(ctx, ctx.getArgument("block", BlockType.class), false)))))
             .then(Commands.literal("settp")
                 .then(mineArgument().executes(this::setTeleport)))
             .then(Commands.literal("reload")
@@ -136,6 +142,7 @@ public class MineCommand {
             <yellow>/thebox mine setname \\<mine> \\<name></yellow> <gray>- the name players see (MiniMessage, e.g. \\<gold>Gold Rush)</gray>
             <yellow>/thebox mine setresetpercent \\<mine> \\<percent></yellow> <gray>- reset (after a 10-second countdown) once this % is mined (0 = off)</gray>
             <yellow>/thebox mine setlevel \\<mine> \\<level></yellow> <gray>- PvP level: players only fight in mines at their own level (0 = no PvP)</gray>
+            <yellow>/thebox mine setsurface \\<mine> \\<block>|auto|none</yellow> <gray>- the block on the faces players can see at each reset, so no ores show; auto (the default) is the mix's most common block</gray>
             <yellow>/thebox mine settp \\<mine></yellow> <gray>- set the teleport point to where you stand</gray>
             <yellow>/thebox mine rename \\<mine> \\<id></yellow> <gray>- change a mine's id, and so its permission</gray>
             <yellow>/thebox mine delete \\<mine></yellow> <gray>- delete a mine (blocks stay)</gray>
@@ -211,7 +218,9 @@ public class MineCommand {
                 ? "every " + mine.getResetIntervalSeconds() + "s (next in " + mine.getSecondsUntilReset() + "s)"
                 : "manual only";
             sender.sendRichMessage("<yellow>" + mine.getId() + "</yellow> <gray>- " + mine.getWorld().getName()
-                + ", blocks: " + describeBlocks(mine) + ", reset: " + reset
+                + ", blocks: " + describeBlocks(mine)
+                + ", surface: " + describeSurface(mine)
+                + ", reset: " + reset
                 + (mine.getResetPercent() > 0
                     ? ", or at " + mine.getResetPercent() + "% mined (now " + mine.getPercentMined() + "%)"
                     : "")
@@ -284,6 +293,37 @@ public class MineCommand {
             : "<green>Mine <white>" + mine.getId() + "</white> will reset once " + percent + "% has been mined.";
         ctx.getSource().getSender().sendRichMessage(message);
         return Command.SINGLE_SUCCESS;
+    }
+
+    /** A block, or null with off false for the mix's most common block, or off true for no surface. */
+    private int setSurface(CommandContext<CommandSourceStack> ctx, BlockType surface, boolean off) throws CommandSyntaxException {
+        Mine mine = getMine(ctx);
+        if (off) {
+            mine.turnSurfaceOff();
+        } else {
+            mine.setSurface(surface);
+        }
+        mines.save();
+        BlockType shown = mine.getSurfaceBlock();
+        String resetHint = " Run <yellow>/thebox mine reset " + mine.getId() + "</yellow> to see it now.";
+        CommandSender sender = ctx.getSource().getSender();
+        if (off) {
+            sender.sendRichMessage("<green>Mine <white>" + mine.getId() + "</white> has no surface now: its outside shows the mix." + resetHint);
+        } else if (shown == null) {
+            sender.sendRichMessage("<green>Mine <white>" + mine.getId() + "</white>'s surface will be its most common block, once it has blocks.");
+        } else {
+            sender.sendRichMessage("<green>From the next reset, mine <white>" + mine.getId() + "</white>'s visible faces are <white>"
+                + shown.key().asString() + "</white>" + (surface == null ? " (its most common block)" : "") + "." + resetHint);
+        }
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private static String describeSurface(Mine mine) {
+        BlockType block = mine.getSurfaceBlock();
+        if (block == null) {
+            return "none";
+        }
+        return block.key().value() + (mine.getSurface() == null ? " (most common)" : "");
     }
 
     private int setLevel(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {

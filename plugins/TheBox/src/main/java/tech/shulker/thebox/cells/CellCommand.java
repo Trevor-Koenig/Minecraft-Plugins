@@ -172,7 +172,11 @@ public class CellCommand {
         if (cell == null) {
             throw fail("<name> doesn't have a cell.", Placeholder.unparsed("name", name));
         }
-        teleport(player, cell.visit());
+        Location spot = cell.standingSpot();
+        if (spot == null && cell.getWorld() != null) {
+            throw fail("There's no room to stand in front of <name>'s cell.", Placeholder.unparsed("name", name));
+        }
+        teleport(player, spot);
         if (target.getUniqueId().equals(player.getUniqueId())) {
             player.sendRichMessage("<gray>You're at the front of your cell.");
         } else {

@@ -5,9 +5,11 @@ import com.sk89q.worldedit.EditSession;
 import com.sk89q.worldedit.MaxChangedBlocksException;
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
+import com.sk89q.worldedit.function.pattern.Pattern;
 import com.sk89q.worldedit.function.pattern.RandomPattern;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.regions.CuboidRegion;
+import com.sk89q.worldedit.world.block.BaseBlock;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -35,6 +37,7 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.entity.AreaEffectCloudApplyEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.PotionSplashEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
 import net.kyori.adventure.text.minimessage.MiniMessage;
@@ -185,10 +188,13 @@ public class MineManager implements Listener {
             }
         }
 
-        // 2. Build a WorldEdit pattern that picks each block at random, in proportion to its weight.
-        RandomPattern pattern = new RandomPattern();
+        // 2. Build a WorldEdit pattern that picks each block at random, in proportion to its weight,
+        //    with the surface block on the faces players can see, unless the surface is off.
+        RandomPattern mix = new RandomPattern();
         mine.getBlocks().forEach((type, weight) ->
-            pattern.add(BukkitAdapter.adapt(type.createBlockData()), weight));
+            mix.add(BukkitAdapter.adapt(type.createBlockData()), weight));
+        BlockType surface = mine.getSurfaceBlock();
+        Pattern pattern = surface == null ? mix : withSurface(mine, mix, surface);
 
         // 3. Fill the region. WorldEdit batches the changes, which is much faster than setting blocks one by one.
         CuboidRegion region = new CuboidRegion(
@@ -207,6 +213,48 @@ public class MineManager implements Listener {
         for (Player player : toNotify) {
             player.sendRichMessage("<gray>Mine <white><name></white> has been reset.",
                 Placeholder.parsed("name", mine.getDisplayName()));
+        }
+    }
+
+    /**
+     * The mine's mix, but with its surface block on every edge block players could see: one whose neighbour just
+     * outside the mine is see-through (air, glass, a fence...). In a walled pit that's only the top; a mine with glass
+     * sides gets its sides covered too. Ores showing there would be free for whoever arrives first, which is why the
+     * classic prison plugins had a surface option. Found before the fill, which never changes blocks outside the mine.
+     */
+    private static Pattern withSurface(Mine mine, Pattern mix, BlockType surfaceType) {
+        World world = mine.getWorld();
+        Set<BlockVector3> exposed = new HashSet<>();
+        for (int x = mine.getMinX(); x <= mine.getMaxX(); x++) {
+            for (int z = mine.getMinZ(); z <= mine.getMaxZ(); z++) {
+                addIfSeen(world, exposed, x, mine.getMaxY(), z, 0, 1, 0);  // top
+                addIfSeen(world, exposed, x, mine.getMinY(), z, 0, -1, 0); // bottom
+            }
+        }
+        for (int y = mine.getMinY(); y <= mine.getMaxY(); y++) {
+            for (int z = mine.getMinZ(); z <= mine.getMaxZ(); z++) {
+                addIfSeen(world, exposed, mine.getMinX(), y, z, -1, 0, 0);
+                addIfSeen(world, exposed, mine.getMaxX(), y, z, 1, 0, 0);
+            }
+            for (int x = mine.getMinX(); x <= mine.getMaxX(); x++) {
+                addIfSeen(world, exposed, x, y, mine.getMinZ(), 0, 0, -1);
+                addIfSeen(world, exposed, x, y, mine.getMaxZ(), 0, 0, 1);
+            }
+        }
+        BaseBlock surface = BukkitAdapter.adapt(surfaceType.createBlockData()).toBaseBlock();
+        // Pattern has no abstract method in WorldEdit 7.4, so it can't be a lambda; applyBlock is the one to override.
+        return new Pattern() {
+            @Override
+            public BaseBlock applyBlock(BlockVector3 position) {
+                return exposed.contains(position) ? surface : mix.applyBlock(position);
+            }
+        };
+    }
+
+    /** Adds the mine block at x y z if its neighbour in direction dx dy dz, just outside the mine, is see-through. */
+    private static void addIfSeen(World world, Set<BlockVector3> exposed, int x, int y, int z, int dx, int dy, int dz) {
+        if (!world.getBlockAt(x + dx, y + dy, z + dz).getBlockData().isOccluding()) {
+            exposed.add(BlockVector3.at(x, y, z));
         }
     }
 
@@ -263,6 +311,7 @@ public class MineManager implements Listener {
                 return;
             }
         }
+        updateNightVision(player, to);
     }
 
     /**
@@ -273,6 +322,46 @@ public class MineManager implements Listener {
     @EventHandler(ignoreCancelled = true)
     public void onTeleport(PlayerTeleportEvent event) {
         onMove(event);
+    }
+
+    // ---------------------------------------------------------------- night vision
+
+    /** Infinite, so it never flickers, and that's also how TheBox recognises its own: potions always run out. */
+    private static final PotionEffect MINE_NIGHT_VISION =
+        new PotionEffect(PotionEffectType.NIGHT_VISION, PotionEffect.INFINITE_DURATION, 0, true, false, true);
+
+    /** Players within this many blocks of a mine (sideways or above) have TheBox's Night Vision. */
+    private static final int NIGHT_VISION_MARGIN = 8;
+
+    /**
+     * Mines get dark below the surface, so players in or near one have Night Vision. The edge is NIGHT_VISION_MARGIN
+     * blocks out, not the mine box itself: there, walking along the rim or hopping in and out of a hole would flash it
+     * on and off. Only TheBox's own is taken away: a Night Vision potion keeps running, and TheBox's takes over when
+     * it ends. Checked on every block-to-block move, so it also comes back after milk or a death.
+     */
+    private void updateNightVision(Player player, Location location) {
+        PotionEffect current = player.getPotionEffect(PotionEffectType.NIGHT_VISION);
+        boolean near = isNearAnyMine(location, NIGHT_VISION_MARGIN);
+        if (near && current == null) {
+            player.addPotionEffect(MINE_NIGHT_VISION);
+        } else if (!near && current != null && current.isInfinite()) {
+            player.removePotionEffect(PotionEffectType.NIGHT_VISION);
+        }
+    }
+
+    private boolean isNearAnyMine(Location location, int margin) {
+        for (Mine mine : mines.values()) {
+            if (mine.isNear(location, margin)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Effects are saved with the player, so someone who logged out in a mine would otherwise keep it forever. */
+    @EventHandler
+    public void onJoin(PlayerJoinEvent event) {
+        updateNightVision(event.getPlayer(), event.getPlayer().getLocation());
     }
 
     // ---------------------------------------------------------------- PvP in mines
@@ -407,6 +496,18 @@ public class MineManager implements Listener {
             mine.setResetPercent(Math.max(0, Math.min(100, m.getInt("reset-percent", 0))));
             mine.setLevel(Math.max(0, m.getInt("level", 0)));
             mine.setDisplayName(m.getString("display-name"));
+            // Missing means the mix's most common block; "none" turns it off.
+            String surface = m.getString("surface");
+            if ("none".equals(surface)) {
+                mine.turnSurfaceOff();
+            } else if (surface != null) {
+                NamespacedKey surfaceKey = NamespacedKey.fromString(surface);
+                BlockType type = surfaceKey == null ? null : Registry.BLOCK.get(surfaceKey);
+                if (type == null) {
+                    plugin.getLogger().warning("Mine '" + id + "': unknown surface block '" + surface + "'; using the mix's most common block.");
+                }
+                mine.setSurface(type);
+            }
             mines.put(id, mine);
         }
     }
@@ -433,6 +534,11 @@ public class MineManager implements Listener {
             yaml.set(path + "reset-interval-seconds", mine.getResetIntervalSeconds());
             yaml.set(path + "reset-percent", mine.getResetPercent());
             yaml.set(path + "level", mine.getLevel());
+            if (mine.isSurfaceOff()) {
+                yaml.set(path + "surface", "none");
+            } else if (mine.getSurface() != null) {
+                yaml.set(path + "surface", mine.getSurface().key().asString());
+            }
             if (mine.hasDisplayName()) {
                 yaml.set(path + "display-name", mine.getDisplayName());
             }

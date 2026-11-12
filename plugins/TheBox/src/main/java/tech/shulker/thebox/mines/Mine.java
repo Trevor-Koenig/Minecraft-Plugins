@@ -42,6 +42,12 @@ public class Mine {
     /** PvP level: players only fight in mines at their own level (the highest level among mines they can enter). 0 means not set, so no PvP. */
     private int level = 0;
 
+    /** Covers the mine's visible faces at each reset, so no ores show on the outside. Null means the mix's most common block. */
+    private BlockType surface = null;
+
+    /** True when the surface is turned off, so the outside shows the mix like the inside. */
+    private boolean surfaceOff = false;
+
     /** Blocks broken inside the mine since its last reset. Kept in memory only. */
     private long blocksMined = 0;
 
@@ -151,6 +157,33 @@ public class Mine {
 
     public int getLevel() { return level; }
     public void setLevel(int level) { this.level = level; }
+
+    /** The block set with setsurface, or null if none was set (see getSurfaceBlock). */
+    public BlockType getSurface() { return surface; }
+    public boolean isSurfaceOff() { return surfaceOff; }
+
+    /** Sets the surface block, or null for the mix's most common block. Turns the surface on. */
+    public void setSurface(BlockType surface) {
+        this.surface = surface;
+        this.surfaceOff = false;
+    }
+
+    public void turnSurfaceOff() {
+        this.surface = null;
+        this.surfaceOff = true;
+    }
+
+    /** What the next reset puts on the visible faces: the block set, else the highest-weighted block (the first listed, on a tie), or null for none. */
+    public BlockType getSurfaceBlock() {
+        if (surfaceOff) {
+            return null;
+        }
+        if (surface != null) {
+            return surface;
+        }
+        // Stream.max keeps the earlier element on a tie.
+        return blocks.entrySet().stream().max(Map.Entry.comparingByValue()).map(Map.Entry::getKey).orElse(null);
+    }
 
     public long getVolume() {
         return (long) (maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1);

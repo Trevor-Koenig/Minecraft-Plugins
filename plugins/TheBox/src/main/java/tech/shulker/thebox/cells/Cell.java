@@ -8,6 +8,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
 import org.bukkit.block.structure.StructureRotation;
 import tech.shulker.thebox.regions.Box;
 
@@ -224,8 +225,8 @@ public class Cell {
         };
     }
 
-    /** Where the owner arrives: inside the room, just behind the front wall, facing in. Null if the world isn't loaded. */
-    public Location home(CellTier.Size size) {
+    /** Inside the room, just behind the front wall, facing in. Null if the world isn't loaded. */
+    public Location inside(CellTier.Size size) {
         World world = getWorld();
         if (world == null) {
             return null;
@@ -252,5 +253,31 @@ public class Cell {
         }
         return new Location(world, (front.minX() + front.maxX() + 1) / 2.0, front.minY(),
             (front.minZ() + front.maxZ() + 1) / 2.0, facing.yawIntoRoom(), 0);
+    }
+
+    /**
+     * Like visit, but somewhere a player fits: the owner can build in the front space, so if its middle is blocked,
+     * the first free spot on its floor is used. Null if the world isn't loaded or the whole floor is built over.
+     */
+    public Location standingSpot() {
+        Location middle = visit();
+        if (middle == null || fits(middle)) {
+            return middle;
+        }
+        for (int x = front.minX(); x <= front.maxX(); x++) {
+            for (int z = front.minZ(); z <= front.maxZ(); z++) {
+                Location spot = new Location(middle.getWorld(), x + 0.5, front.minY(), z + 0.5, middle.getYaw(), 0);
+                if (fits(spot)) {
+                    return spot;
+                }
+            }
+        }
+        return null;
+    }
+
+    /** True if a player standing here has room for their feet and head. */
+    private static boolean fits(Location location) {
+        Block feet = location.getBlock();
+        return feet.isPassable() && feet.getRelative(BlockFace.UP).isPassable();
     }
 }

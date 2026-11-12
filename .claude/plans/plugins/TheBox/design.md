@@ -81,7 +81,7 @@ A player's own personal space, a classic prison feature. **Redesigned 2026-11-09
   - Default prices: about the cost of the rank that unlocks the size; tier moves cost twice that. The first cell costs $2,000 *(decided 2026-11-10)*, a small first goal so players play a while before they get one; `/cell` shows the price and `/cell buy` pays. Cells add about 40 hours on top of the 100-hour ladder (see Economy and pacing). They're optional: players who invest in cells reach Z later.
 - **Tier moves are by hand** *(decided 2026-11-09)*. Buying size 4 or 7 gives the player a free cell in the next tier's block. They keep the old cell for 7 days (`/cell old`) to carry things over; shulker boxes are the moving boxes. On `/cell release`, or when the time is up, whatever is left goes to their **impound** through the stall clearer (Silk Touch drops, containers emptied, item frames and armor stands), and the old cell is reset to its starting room and freed. Nothing is copied, so nothing can duplicate.
 - **Doors need no code:** WorldGuard stops non-members using doors, buttons, pressure plates and levers inside a region ([What's protected](https://worldguard.enginehub.org/en/latest/regions/scope/)), so only the owner and trusted helpers can open a cell door. **Never set `use allow` on `__global__`:** its flags also apply inside regions that don't set them, so it would open every cell door.
-- **Commands:** `/cell` (home, inside the room), `/cell visit <player>` (to their front space, e.g. straight from a mine), `/cell upgrade` (also a chest menu), `/cell trust|untrust`, `/cell old`, `/cell release`. PvPManager blocks commands during combat, so `/cell` can't be used to escape a fight (check in testing).
+- **Commands:** `/cell` (home: inside the room, just behind the front wall; the same goes for `/cell buy`, `/cell old` and tier moves. From 2026-11-10 to 2026-11-11 it went to the front instead, in case the door couldn't be opened from inside. That was reverted because the tier front can include a button inside the room), `/cell visit <player>` (to a free spot in their front space, e.g. straight from a mine. If the owner has built over the middle, `Cell#standingSpot` finds another spot, and the visit is refused if there's no room), `/cell upgrade` (also a chest menu), `/cell trust|untrust`, `/cell old`, `/cell release`. PvPManager blocks commands during combat, so `/cell` can't be used to escape a fight (check in testing).
 - **Prestige:** cells survive prestige. Seasons wipe them (see Seasons).
 - **Still true from 2026-11-08:** one cell per player; *(changed 2026-11-10: players buy their first cell with `/cell buy` instead of getting one free on join; if none is free, admins are warned)*; no hostile mob spawning (TheBox sets `mob-spawning deny` on cell regions); cells of inactive players are kept for now; later upgrades besides size: a cell shop and more trusted builders.
 - **What changed on 2026-11-09:** tier moves are by hand instead of a WorldEdit copy, so the riskiest code is gone; sizes come from `cells.yml` instead of one selection per size; cells grow away from a front space instead of in every direction, so they can have real doors; the visit lock is gone, because visitors arrive outside the door. The "proposed simplification" (no tier moves) wasn't adopted.
@@ -125,7 +125,7 @@ Planned 2026-11-08 (from the first player test): a store at spawn where players 
 - **Prices** *(first draft 2026-11-10, at the money scale in Economy and pacing)*:
   - Pickaxes lose 1 durability per block, so they're consumables. Each costs about $0.32 per block of durability, which is 8% of what a block earns. So every pickaxe costs the same per block, and better ones pay for themselves by mining faster. Unbreaking II makes a tool last 3× as long, III 4×.
   - Players can craft plain gear from mined materials, so plain items cost about 2× their materials' sell value. Enchantments are what the store adds. What a PvP death costs is set by material prices, not by the store.
-  - Players start with $0 (EssentialsX `starting-balance`), so EssentialsX's first-join kit (`newbies.kit`) gives a stone pickaxe. It fires again after a season reset.
+  - Players start with $0 (EssentialsX `starting-balance`), so EssentialsX Spawn's first-join kit (`newbies.kit`) gives a stone pickaxe (see Seasons).
 
   | Item | Price |
   |---|---|
@@ -150,21 +150,25 @@ Agreed 2026-11-08: a new season resets all player progress. **A checklist in `RE
 **Written 2026-11-10 as `README.md` section 16.** A season makes everyone a new player: rank, prestige, balance, cell, inventory and newbie protection all reset. Setup stays: mines, cells and their prices, sell prices, groups, staff permissions and the server booths.
 - **Where player data lives.** Paper can't edit offline players, so most of it is deleted with the server stopped. An in-game version would have to reset each player at their next join.
   - Vanilla: `world/players/data`, `advancements` and `stats`. Minecraft 26.1 moved them there ([26.1 changelog](https://minecraft.wiki/w/Java_Edition_26.1)).
-  - EssentialsX: `userdata/` (balances, used kits, homes). EssentialsX detects first joins from its own data, so deleting it makes the first-join kit fire again.
+  - EssentialsX: `userdata/` (balances, used kits, homes). EssentialsX detects first joins from its own data, so deleting it gives everyone the starter kit again.
   - PvPManager: `database.db`. Newbie protection only goes to players with default PvPManager data who also haven't played before (`hasPlayedBefore()`). `/newbie add` only takes online players.
 - **Ranks and prestige:** `lp bulkupdate users delete "permission ~~ group._"`, and the same with `group.p_` ([Bulk editing](https://luckperms.net/wiki/Bulk-Editing); `~~` is SQL `LIKE`, where `_` is one character). Use `users`, not `all`, because the rank groups inherit each other. TheBox puts players back in `a` at their next join.
 - **Decided 2026-11-10: delete EssentialsX `userdata/`**, for a real first join, at the cost of homes, nicknames, mail and mutes. The alternative is `eco reset ** 0` (`**` includes offline players; it resets to `starting-balance`). An [old bug report](https://github.com/EssentialsX/Essentials/issues/5305) says `**` failed on some builds.
 - **Decided 2026-11-10: prestige resets with the season**, as part of the full reset (replaces the earlier lean toward keeping it).
 - **Stalls:** `/thebox market wipe` *(built 2026-11-10, untested)* clears every rented stall without impounding, frees it, then empties the whole impound, which also holds evicted cells' leftovers. Rented stalls in unloaded worlds are skipped and reported. The store's admin shops aren't in stalls, so they survive. Because this runs in-game, the checklist needs only one restart: delete files while stopped, then run the wipes.
 - Cells: `/thebox cell wipe` resets every cell to its starting room, with no impound (M6). Mines: reset each one.
-- The starter kit is EssentialsX's `newbies.kit`, which fires again after a reset.
-- To test: PvPManager relies on `hasPlayedBefore()`, which an EssentialsX source comment calls unreliable on current server software. If brand-new players don't get newbie protection, TheBox would have to run `/newbie add` on first join itself.
+- **Starter kit and first spawn** *(decided 2026-11-11)*:
+  - The kit is EssentialsX Spawn's `newbies.kit`, the only way EssentialsX hands out a kit by itself. Its spawning is switched off (`respawn-listener-priority: none`, `newbies.spawnpoint: none`), so it doesn't overlap with Multiverse.
+  - The kit is "given regardless of cost and permissions", so nobody gets `essentials.kits.starter`; otherwise it could be claimed twice.
+  - Where new players arrive is Multiverse's `spawn.first-spawn-override`. Without it, vanilla puts first-time players on the highest block above the world spawn, which is the spawn building's roof.
+  - Fallback if Multiverse's first-join detection fails (see below): EssentialsX Spawn's `newbies.spawnpoint` with `/setspawn newbies`. EssentialsX detects first joins from its own data.
+- To test: PvPManager, and Multiverse's first-spawn-override, rely on `hasPlayedBefore()`, which an EssentialsX source comment calls unreliable on current server software. If brand-new players land on the roof or don't get newbie protection, that's the cause. The fixes would be Multiverse's `join-destination` (everyone goes to spawn on every login) and TheBox running `/newbie add` on first join.
 - On the network this only touches the prison server. LuckPerms is shared, but the bulk updates only match the prison's one-letter rank groups and `p` groups.
 
 ### Economy and pacing
 Decided 2026-11-09, for a small server (3–10 players):
 - **A first run from A to Z takes about 100 hours of mining; A–C is a tutorial.** Time per rank-up: B 15 min, C 30 min, D 1 h, then 18 minutes more for each rank, up to 7.6 h for Z. Players reach M after about 24 hours and R after about 47. Cells add about 40 hours on top.
-- **Rank cost = hours for that rank × income per hour of the mine before it.** Measure each mine's income: mine for 5 minutes with realistic gear, `/sell all`, ×12. Aim for each mine to pay about 1.15× the one before. The placeholder costs in `ranks.yml` (+4000 per rank) don't follow this yet.
+- **Rank cost = hours for that rank × income per hour of the mine before it.** Measure each mine's income: mine for 5 minutes with realistic gear, `/sell all`, ×12. Aim for each mine to pay about 1.15× the one before. The placeholder costs in `ranks.yml` (+4000 per rank) don't follow this. The formula's costs, assuming the starter mine pays $14,400 an hour, are in `README.md` section 6 as `setcost` commands (b $3,600 to z $3.1M, $17.9M in all), and matching cell prices are in section 11 *(2026-11-11)*.
 - **Money scale** *(decided 2026-11-10)*: the starter mine pays about $4 a block, about $240 a minute. That's 4× the first draft, so every price is a whole number, and the first run ends in the millions (under the formula, Z costs about 7.6 h of the Y mine's income, about $3M). Scaling everything by the same factor changes nothing in play, so it was settled before players have balances.
 - **Sell prices** *(first draft 2026-11-10; suggested values in `README.md`, section 7)*: set once, then tune each mine through its block mix. Changing a price changes every mine that drops the item.
   - Filler: cobblestone and stone $2, cobbled deepslate and deepslate $3. Stone matches cobblestone so Silk Touch and smelting add nothing. Deepslate pays 1.5× because it takes about 1.5× as long to mine: hardness 3 against stone's 1.5, plus a 6-tick pause after every block ([Breaking](https://minecraft.wiki/w/Breaking)).
@@ -187,13 +191,14 @@ Decided 2026-11-09, for a small server (3–10 players):
 |---|---|---|
 | WorldEdit | Region selection for mines; possibly fast fills for resets | `depend` (added) |
 | Vault + an economy plugin (e.g. EssentialsX) | Balances: sell income, rank-up costs | `depend` (from M2: Selling) |
+| EssentialsX Spawn | Only the starter kit on a player's first join (`newbies.kit`). `respawn-listener-priority: none` and `newbies.spawnpoint: none` keep it out of spawning *(decided 2026-11-11)*. It must be the same build as EssentialsX. | Runs alongside TheBox; no code dependency |
 | LuckPerms | The rank ladder (a track), each player's rank and prestige, and the permissions ranks grant | `depend` (from M3: Ranks) |
 | PlayerParticles | Cosmetic particle effects (wings, halo, …) unlocked by prestige, one permission per style | Runs alongside TheBox; no code dependency. Latest build lists up to 26.2, so check 26.3 support first |
 | WorldGuard | From launch: protects the world (`__global__` passthrough deny) and lets players break blocks in mines (a `mine_<id>` region per mine with `block-break allow`). Who may *enter* a mine stays TheBox's job (rank permissions). Setup in `README.md`. | Runs alongside TheBox; no code dependency yet |
 | WorldGuard API | Rentable market stalls and cells: TheBox creates regions and adds renters/owners as members (stall plugins look unmaintained, see Market) | Code dependency (from M5) |
 | QuickShop-Hikari | Player chest shops in stalls (and maybe cells) | Runs alongside TheBox; probably no code dependency |
 | PvPManager | Combat tagging, combat-log handling | Runs alongside TheBox (from M4) |
-| Multiverse-Core *(optional)* | Several worlds on the prison server (mines, market, …). Loads before TheBox (`softdepend`) so mine and market worlds exist when TheBox loads its files. Keep its per-world PvP on in worlds with PvP mines. | `softdepend` |
+| Multiverse-Core *(optional)* | Several worlds on the prison server (mines, market, …). Loads before TheBox (`softdepend`) so mine and market worlds exist when TheBox loads its files. Keep its per-world PvP on in worlds with PvP mines. Also handles spawning: respawns, and first joins (`spawn.first-spawn-override`). | `softdepend` |
 
 Shops (2026-11-08): QuickShop-Hikari over EssentialsX's sign shops. EssentialsX's `[Trade]` signs keep their stock in the sign rather than in a chest, its `[Buy]`/`[Sell]` signs are server shops, and neither has an API for closing or removing shops when rent lapses.
 
@@ -227,7 +232,7 @@ Declare them in `plugin.yml` with defaults.
 |---|---|---|
 | `thebox.admin` | All admin commands | op |
 | `thebox.mine.<id>` | Entering and teleporting to mine `<id>` | granted by ranks |
-| `thebox.market` | `/market` | granted by ranks |
+| `thebox.market.rent` | Renting a stall (`/market rent`). Visiting with `/market` needs no permission, by design (see Market). | granted by rank `c` |
 | `thebox.command.<command>` *(planned)* | A player command (`sell`, `mines`, `rankup`, …) | true |
 | `thebox.cell.size.<n>` *(planned)* | Buying cell size *n* (2–9) | granted by ranks `d`, `g`, `j`, `m`, `p`, `s`, `v`, `y` |
 
@@ -264,6 +269,16 @@ All of M1 passed in-game testing on 2026-11-07.
 - [x] Reset when X% has been mined: `/mine setresetpercent <mine> <percent>`, counting block breaks inside the mine *(tested in the first player test, 2026-11-08)*
 - [x] Players without `thebox.mine.<id>` can't walk or teleport into a mine (`PlayerMoveEvent`). Walking tested in the first player test, 2026-11-08; teleports got their own handler afterwards (`PlayerTeleportEvent` has its own handler list), *untested*
 - [x] Announce resets to players in or within 32 blocks of the mine *(tested in the first player test, 2026-11-08)*
+- [x] Surface block *(built 2026-11-11, untested)*: `/thebox mine setsurface <mine> <block>|auto|none`, saved as `surface` in `mines.yml` (missing means auto; `none` means off). The idea comes from MineResetLite's `surface` flag ("hides surface ores that are freebies"), and the owner saw ores being picked off the surface in testing. Details:
+  - On by default, the same day: `auto` uses the mix's highest-weighted block (the first listed, on a tie), so most mines need no setting. Existing mines get it at their next reset.
+  - At each reset, every edge block whose neighbour just outside the mine is see-through (`BlockData#isOccluding` is false) gets the surface block instead of the mix. That covers the top of a walled pit, and glass or open sides too, with no per-face setting.
+  - It's a WorldEdit pattern wrapping the mix. WorldEdit 7.4's `Pattern` has no abstract method, so it's an anonymous class overriding `applyBlock`, not a lambda.
+  - *Decided the same day:* mines keep the classic speckled look. Each block is random by percentage, as in MineResetLite. Clumped ore veins (per-ore sizes, Eden-growth blobs) were considered and dropped.
+- [x] Night Vision in and around mines *(built 2026-11-11, untested)*, instead of letting players place torches. Mines stay place-protected, which rules out pillaring, boxing in during PvP, and buckets. Details:
+  - TheBox checks on every block-to-block move and adds an infinite, particle-free Night Vision when the player is near a mine, so it also comes back after milk or a death. It's checked on join too, since effects are saved with the player.
+  - It's on within 8 blocks (`NIGHT_VISION_MARGIN`) of any mine, sideways or above, and off beyond that. An edge at the mine box itself flashed it on and off when players walked along the rim or hopped in and out of holes, because removing Night Vision has no fade. Briefly (2026-11-11) it switched on at the box and off at 8 blocks. The owner preferred 8 for both, which also lights the way in. If players ever flicker at the 8-block line, switching off a couple of blocks farther out fixes it.
+  - It removes only infinite Night Vision, which is how it recognises its own: potions always have an end, so a potion's effect keeps running.
+  - Possible later: a per-mine switch, or allowing a placeable list such as torches or TNT (a WorldGuard `block-place allow` plus a TheBox filter, with buckets and lighters blocked, and reset counting limited to the mine's own blocks).
 - [x] Reset changes requested 2026-11-08 *(tested in the first player test, 2026-11-08)*:
   - Players inside are lifted **straight up** onto the refilled mine (same x/z and facing), not sent to the teleport point. Falls back to the teleport point if the space above the mine is blocked.
   - **Warnings in chat** to players in or near the mine: 1 minute, 10 seconds, then 3, 2, 1, sent by the once-a-second reset timer.

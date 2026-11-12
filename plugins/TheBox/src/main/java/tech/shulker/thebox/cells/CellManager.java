@@ -96,10 +96,14 @@ public class CellManager implements Listener {
         return tier == null ? null : tier.sizes().get(cell.getSize());
     }
 
-    /** Where the owner arrives in the cell, or null if it isn't set up or its world isn't loaded. */
+    /**
+     * Where the owner arrives: inside the room, just behind the front wall. The tier's front needs a way to open the
+     * door from inside (savefront saves the room's first layer, so a button there comes back on every rebuild).
+     * Null if the cell isn't set up or its world isn't loaded.
+     */
     public Location home(Cell cell) {
         CellTier.Size size = sizeOf(cell);
-        return size == null || !cell.isReady() ? null : cell.home(size);
+        return size == null || !cell.isReady() ? null : cell.inside(size);
     }
 
     /** The player's cell (not counting one they're moving out of), or null. */
