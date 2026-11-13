@@ -13,6 +13,7 @@ repositories {
     maven("https://maven.enginehub.org/repo/")
     maven("https://jitpack.io")
     maven("https://repo.codemc.io/repository/maven-public/") // QuickShop-Hikari's API
+    maven("https://repo.extendedclip.com/releases/") // PlaceholderAPI
 }
 
 dependencies {
@@ -27,6 +28,8 @@ dependencies {
     // QuickShop-Hikari API: removing shops when a stall is cleared, closing shops of unpaid stalls.
     // Optional at runtime (softdepend): TheBox only touches it when QuickShop-Hikari is installed.
     compileOnly("com.ghostchu:quickshop-api:6.3.0.0")
+    // PlaceholderAPI: %thebox_earned% for leaderboard and hologram plugins. Optional at runtime (softdepend).
+    compileOnly("me.clip:placeholderapi:2.12.3")
 }
 
 tasks.withType<JavaCompile> {
@@ -53,6 +56,7 @@ tasks.runServer {
         modrinth("worldguard", "fiHLM6oY")      // WorldGuard 7.0.21
         modrinth("pvpmanager", "eKgXGdO2")      // PvPManager 4.0.30
         modrinth("quickshop-hikari", "OxlW1jL5") // QuickShop-Hikari 6.3.0.3
+        modrinth("placeholderapi", "pIvQcXW8")  // PlaceholderAPI 2.12.3
         // EssentialsX dev build #1833 (2.22.1-dev): its last release predates 26.3 support
         url("https://ci.ender.zone/job/EssentialsX/1833/artifact/jars/EssentialsX-2.22.1-dev%2B28-f8724e2.jar")
     }

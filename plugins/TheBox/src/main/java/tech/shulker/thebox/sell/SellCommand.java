@@ -32,33 +32,40 @@ import org.bukkit.inventory.ItemType;
 import org.bukkit.inventory.PlayerInventory;
 
 /**
- * The player command /sell hand|all|worth, plus the admin-only /thebox price set|remove|list|reload.
+ * The player command /sell hand|all|worth|top, plus the admin-only /thebox price
+ * set|remove|list|reload.
  */
 public class SellCommand {
 
     private static final SimpleCommandExceptionType NO_ECONOMY = new SimpleCommandExceptionType(
             new LiteralMessage("Selling is unavailable: no economy plugin is installed."));
     private static final SimpleCommandExceptionType EMPTY_HAND = new SimpleCommandExceptionType(
-            new LiteralMessage("You're not holding anything."));
+            new LiteralMessage("You're not holding anything. <gray>What did you think would happen?"));
     // These two show the item's name: its custom name if a player renamed it, so
     // funny names make funny errors.
-    private static final DynamicCommandExceptionType NOT_SELLABLE = new DynamicCommandExceptionType(
-            name -> itemMessage("<item> can't be sold.", name));
     private static final DynamicCommandExceptionType CUSTOM_ITEM = new DynamicCommandExceptionType(
             name -> itemMessage("<item> cannot be sold because it is renamed, enchanted or otherwise customized.",
                     name));
     private static final SimpleCommandExceptionType NOTHING_TO_SELL = new SimpleCommandExceptionType(
-            new LiteralMessage("You have nothing sellable in your inventory."));
+            new LiteralMessage(
+                    "You have nothing sellable in your inventory. <gray>You should probably work on that..."));
     private static final SimpleCommandExceptionType NO_PRICE = new SimpleCommandExceptionType(
-            new LiteralMessage("That item doesn't have a price."));
+            new LiteralMessage("That item doesn't have a price. <gray>Go whine to a server admin about it."));
     private static final DynamicCommandExceptionType DEPOSIT_FAILED = new DynamicCommandExceptionType(
             error -> new LiteralMessage("The economy refused the payment: " + error));
+    private static final DynamicCommandExceptionType NOT_SELLABLE = new DynamicCommandExceptionType(
+            name -> itemMessage("<item> can't be sold.", name));
+
+    /** How many players /sell top lists. */
+    private static final int TOP_SIZE = 10;
 
     private final PriceManager prices;
+    private final Earnings earnings;
     private final ComponentLogger logger;
 
-    public SellCommand(PriceManager prices, ComponentLogger logger) {
+    public SellCommand(PriceManager prices, Earnings earnings, ComponentLogger logger) {
         this.prices = prices;
+        this.earnings = earnings;
         this.logger = logger;
     }
 
@@ -68,10 +75,13 @@ public class SellCommand {
                 .then(Commands.literal("hand").executes(ctx -> logErrors(ctx, "hand", this::sellHand)))
                 .then(Commands.literal("all").executes(ctx -> logErrors(ctx, "all", this::sellAll)))
                 .then(Commands.literal("worth").executes(this::worth))
+                .then(Commands.literal("top").executes(this::top))
                 .build();
     }
 
-    /** The admin price commands. Mounted under /thebox, which checks thebox.admin. */
+    /**
+     * The admin price commands. Mounted under /thebox, which checks thebox.admin.
+     */
     public LiteralCommandNode<CommandSourceStack> createPriceNode() {
         return Commands.literal("price")
                 .then(Commands.literal("set")
@@ -94,7 +104,8 @@ public class SellCommand {
                         <gold>Selling:</gold>
                         <yellow>/sell hand</yellow> <gray>- sell the stack you're holding</gray>
                         <yellow>/sell all</yellow> <gray>- sell everything sellable in your inventory (customized items are skipped)</gray>
-                        <yellow>/sell worth</yellow> <gray>- check what the item you're holding sells for</gray>""");
+                        <yellow>/sell worth</yellow> <gray>- check what the item you're holding sells for</gray>
+                        <yellow>/sell top</yellow> <gray>- the players who've earned the most from selling</gray>""");
         return Command.SINGLE_SUCCESS;
     }
 
@@ -120,6 +131,7 @@ public class SellCommand {
         double total = price * amount;
         deposit(economy, player, total); // pay first: if the economy refuses, the player keeps the items
         inventory.setItemInMainHand(null);
+        earnings.add(player, total);
 
         reply(player, "hand", "<green>Sold <count> <item> for <total>.</green> <gray>Balance: <balance>",
                 Placeholder.unparsed("count", String.valueOf(amount)),
@@ -170,6 +182,7 @@ public class SellCommand {
         for (int slot : slotsToClear) {
             inventory.setItem(slot, null);
         }
+        earnings.add(player, total);
 
         reply(player, "all", "<green>Sold <count> items for <total>.</green> <gray>Balance: <balance>",
                 Placeholder.unparsed("count", String.valueOf(itemCount)),
@@ -180,6 +193,43 @@ public class SellCommand {
                     + " customized stack(s) (renamed, enchanted, etc.): those can't be sold.");
         }
         return Command.SINGLE_SUCCESS;
+    }
+
+    /** The players with the highest lifetime /sell earnings, plus the player's own place if they're further down. */
+    private int top(CommandContext<CommandSourceStack> ctx) {
+        CommandSender sender = ctx.getSource().getSender();
+        List<Earnings.Entry> ranked = earnings.ranked();
+        if (ranked.isEmpty()) {
+            sender.sendRichMessage("<gray>Nobody has sold anything yet. Be the first: /sell all");
+            return Command.SINGLE_SUCCESS;
+        }
+        sender.sendRichMessage("<gold>Top sellers</gold> <gray>(lifetime /sell earnings):");
+        for (int i = 0; i < Math.min(TOP_SIZE, ranked.size()); i++) {
+            sendPlace(sender, i + 1, ranked.get(i));
+        }
+        if (sender instanceof Player player) {
+            int own = -1;
+            for (int i = 0; i < ranked.size(); i++) {
+                if (ranked.get(i).uuid().equals(player.getUniqueId())) {
+                    own = i;
+                    break;
+                }
+            }
+            if (own < 0) {
+                sender.sendRichMessage("<gray>You haven't sold anything yet.");
+            } else if (own >= TOP_SIZE) {
+                sender.sendRichMessage("<gray>...");
+                sendPlace(sender, own + 1, ranked.get(own));
+            }
+        }
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private static void sendPlace(CommandSender sender, int place, Earnings.Entry entry) {
+        sender.sendRichMessage("<yellow>#<place></yellow> <name> <gray>- <earned>",
+                Placeholder.unparsed("place", String.valueOf(place)),
+                Placeholder.unparsed("name", entry.name()),
+                Placeholder.unparsed("earned", VaultEconomy.format(sender, entry.earned())));
     }
 
     // ---------------------------------------------------------------- prices
@@ -197,7 +247,8 @@ public class SellCommand {
         if (price == null) {
             throw NOT_SELLABLE.create(stack.effectiveName());
         }
-        String customizedNote = PriceManager.isPlain(stack, type) ? "" : " <gray>(This one is customized, though, so it can't be sold.)";
+        String customizedNote = PriceManager.isPlain(stack, type) ? ""
+                : " <gray>(This one is customized, though, so it can't be sold.)";
         player.sendRichMessage("<item> <green>sells for <each> each, <total> for this stack.</green>" + customizedNote,
                 Placeholder.component("item", stack.effectiveName()),
                 Placeholder.unparsed("each", VaultEconomy.format(player, price)),
@@ -250,7 +301,9 @@ public class SellCommand {
 
     // ---------------------------------------------------------------- helpers
 
-    /** Sends a message to the player and writes the same message to the server log. */
+    /**
+     * Sends a message to the player and writes the same message to the server log.
+     */
     private void reply(Player player, String subcommand, String template, TagResolver... placeholders) {
         Component message = MiniMessage.miniMessage().deserialize(template, placeholders);
         player.sendMessage(message);
@@ -258,21 +311,25 @@ public class SellCommand {
     }
 
     /**
-     * Runs an executor, logging any error it throws before passing the error on to Brigadier as usual.
-     * Wrapping the executor means every error is logged, including ones added later.
+     * Runs an executor, logging any error it throws before passing the error on to
+     * Brigadier as usual.
+     * Wrapping the executor means every error is logged, including ones added
+     * later.
      */
     private int logErrors(CommandContext<CommandSourceStack> ctx, String subcommand,
             Command<CommandSourceStack> executor) throws CommandSyntaxException {
         try {
             return executor.run(ctx);
         } catch (CommandSyntaxException e) {
-            log(ctx.getSource().getSender(), subcommand, MessageComponentSerializer.message().deserialize(e.getRawMessage()));
+            log(ctx.getSource().getSender(), subcommand,
+                    MessageComponentSerializer.message().deserialize(e.getRawMessage()));
             throw e;
         }
     }
 
     /**
-     * Logs through Paper's ComponentLogger, which renders components in the console: translated item names
+     * Logs through Paper's ComponentLogger, which renders components in the
+     * console: translated item names
      * show as "Dirt", not as the raw key "block.minecraft.dirt".
      */
     private void log(CommandSender sender, String subcommand, Component message) {

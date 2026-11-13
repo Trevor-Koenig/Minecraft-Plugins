@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package tech.shulker.thebox;
 
 import com.mojang.brigadier.Command;
@@ -19,11 +20,14 @@ import tech.shulker.thebox.menu.MenuListener;
 import tech.shulker.thebox.mines.MineAdminCommand;
 import tech.shulker.thebox.mines.MineCommand;
 import tech.shulker.thebox.mines.MineManager;
+import tech.shulker.thebox.placeholders.TheBoxExpansion;
+import tech.shulker.thebox.ranks.ChatTags;
 import tech.shulker.thebox.ranks.PrestigeCommand;
 import tech.shulker.thebox.ranks.RankAdminCommand;
 import tech.shulker.thebox.ranks.RankLadder;
 import tech.shulker.thebox.ranks.RankManager;
 import tech.shulker.thebox.ranks.RankupCommand;
+import tech.shulker.thebox.sell.Earnings;
 import tech.shulker.thebox.sell.PriceManager;
 import tech.shulker.thebox.sell.SellCommand;
 import tech.shulker.thebox.sell.VaultEconomy;
@@ -47,9 +51,16 @@ public class TheBox extends JavaPlugin {
         mineManager.startResetTimer();
         getServer().getPluginManager().registerEvents(mineManager, this); // counts mined blocks for % resets
 
-        // Selling: load prices.yml
+        // Selling: load prices.yml, and earnings.yml (lifetime /sell totals, for /sell top)
         PriceManager priceManager = new PriceManager(this);
         priceManager.load();
+        Earnings earnings = new Earnings(this);
+        earnings.load();
+        // PlaceholderAPI is optional (softdepend, so when it's installed it has enabled before TheBox).
+        if (getServer().getPluginManager().isPluginEnabled("PlaceholderAPI")) {
+            new TheBoxExpansion(this, earnings).register();
+            getLogger().info("PlaceholderAPI found: registered %thebox_earned% for leaderboards.");
+        }
 
         // Ranks: load ranks.yml (written with a to z the first time)
         RankManager rankManager = new RankManager(this);
@@ -59,6 +70,7 @@ public class TheBox extends JavaPlugin {
         // already enabled and registered its API with Bukkit's services manager.
         RankLadder ladder = new RankLadder(getServer().getServicesManager().load(LuckPerms.class));
         getServer().getPluginManager().registerEvents(ladder, this); // puts players on the first rank when they join
+        getServer().getPluginManager().registerEvents(new ChatTags(rankManager, ladder), this); // [P2] [C] Name: message
         if (ladder.getTrack() == null) {
             getLogger().warning("LuckPerms has no '" + RankLadder.TRACK + "' track yet: /rankup won't work until you create it (/lp createtrack "
                 + RankLadder.TRACK + ").");
@@ -101,7 +113,7 @@ public class TheBox extends JavaPlugin {
         });
 
         // Register commands
-        SellCommand sellCommand = new SellCommand(priceManager, getComponentLogger());
+        SellCommand sellCommand = new SellCommand(priceManager, earnings, getComponentLogger());
         getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event -> {
             // Player commands stay short and top-level, like on other prison servers.
             event.registrar().register(new MineCommand(mineManager).createNode(), "Go to one of the mines you've unlocked");

@@ -108,7 +108,7 @@ An idea to come back to later; nothing designed yet.
 Decided 2026-11-08: players use **chest menus** (clickable inventory GUIs) where they fit: choosing a marketplace, the impound, cell upgrades. Actions also have commands. One small, reusable menu helper serves every feature.
 
 ### Chat
-Decided 2026-11-08: **TheBox formats chat itself** with Paper's chat API: `[P2] [C] Name: message` (prestige, rank; a gang tag if gangs return).
+Decided 2026-11-08: **TheBox formats chat itself** with Paper's chat API: `[P2] [C] Name: message` (prestige, rank; a gang tag if gangs return). *Built 2026-11-13 (M3 step 8):* the rank part is the rank's display name (owner), so renamed ranks show their name and colors.
 
 ### Food
 Decided 2026-11-08: no TheBox code. For launch, EssentialsX covers it (setup in `README.md`, "Food"):
@@ -225,6 +225,8 @@ Decided 2026-11-09, for a small server (3–10 players):
 | WorldGuard API | Rentable market stalls and cells: TheBox creates regions and adds renters/owners as members (stall plugins look unmaintained, see Market) | Code dependency (from M5) |
 | QuickShop-Hikari | Player chest shops in stalls (and maybe cells) | Runs alongside TheBox; probably no code dependency |
 | PacketEvents | QuickShop-Hikari's floating item displays (or ProtocolLib); without either, shops work but show no display | Optional, no code dependency. 2.14.0 adds 26.3 |
+| PlaceholderAPI | TheBox registers `%thebox_earned%` (lifetime `/sell` earnings) for leaderboard and hologram plugins; rank and prestige placeholders for a sidebar would go in the same expansion | `softdepend` (from 2026-11-13); `TheBoxExpansion` is only created when it's installed |
+| ajLeaderboards + DecentHolograms | The top sellers hologram at spawn, from `%thebox_earned%` (setup in `README.md`, section 7) | Optional, no code dependency. Both list 26.3 (ajLeaderboards 2.11.0, DecentHolograms 2.10.2; checked 2026-11-13) |
 | PvPManager | Combat tagging, combat-log handling | Runs alongside TheBox (from M4) |
 | Multiverse-Core *(optional)* | Several worlds on the prison server (mines, market, …). Loads before TheBox (`softdepend`) so mine and market worlds exist when TheBox loads its files. Keep its per-world PvP on in worlds with PvP mines. Also handles spawning: respawns, and first joins (`spawn.first-spawn-override`). | `softdepend` |
 
@@ -238,7 +240,7 @@ Compare against existing prison servers before finalizing.
 **Players**
 - `/mine`: menu of your mines (straight there with only one), `/mine <id>`, `/mine help` (renamed from `/mines` 2026-11-12)
 - `/rankup` (buys the next rank), `/rankup max`, `/rankup list` (the ladder; `/ranks` until 2026-11-12), `/rankup help`, `/prestige`
-- `/sell all`, `/sell hand`, `/autosell`
+- `/sell all`, `/sell hand`, `/sell worth`, `/sell top` (lifetime earnings board); `/autosell` only if playtesting asks
 - `/market`: menu of unlocked markets (straight there with one), `/market <id>`, and the stall subcommands
 - Balance, pay and baltop come from the economy plugin, not TheBox.
 
@@ -341,6 +343,8 @@ M2 was tested in the first player test (2026-11-08). Implementation notes:
 - Every `/sell hand` and `/sell all` reply, successes and errors, is also written to the server log through Paper's `ComponentLogger` (so translated item names render properly).
 - Unsellable and customized items are named in the error, using the custom name if renamed.
 - `/sell worth` (players): shows what the held item sells for *(tested in the first player test, 2026-11-08)*.
+- **Lifetime earnings and `/sell top`** *(built 2026-11-13, untested; players asked for it in the first test)*. `Earnings` adds every `/sell hand` and `/sell all` payout to the player's total in `earnings.yml` (UUID → last-known name and total, saved after each sale). Only `/sell` counts: it's the only money the server creates, and `/pay` or shop sales could be passed back and forth between friends to climb the board. The impound's auto-sell doesn't count either. `/sell top` lists the top 10 and the player's own place. Prestige keeps the totals; a season deletes `earnings.yml` (`README.md` section 16).
+  - The hologram (owner's choice over chat only): `%thebox_earned%` (PlaceholderAPI, whole dollars, works for offline players), ranked by ajLeaderboards and shown by DecentHolograms. The map is a `ConcurrentHashMap` because placeholder plugins read it from their own threads.
 
 ### M3: Ranks and prestige
 Configurable ladder, `/rankup`, `/ranks`, unlocks via LuckPerms, prestige.
@@ -384,7 +388,7 @@ Steps 2, 5 and 6, implementation notes:
   - A first prestige uses LuckPerms' `ADDED_TO_FIRST_GROUP` result (adds `p1`), which the API counts as a success.
   - Rank costs scale with prestige: `cost × (1 + prestige-multiplier × prestige)`, default 0.5. Set with `/thebox rank setprestigemultiplier` or in `ranks.yml`.
   - Prestige-ups are announced to the whole server and written to the server log.
-- [ ] 8. Chat tags: `[P3] [C] Name: message` in chat
+- [x] 8. Chat tags: `[P3] [C] Name: message` in chat *(built 2026-11-13, untested)*. `ranks/ChatTags` listens to `AsyncChatEvent` and sets a `ChatRenderer.viewerUnaware` renderer (rendered once per message, not per viewer). The prestige tag only shows from P1; the rank part is the rank's display name; the name is the player's display name, so EssentialsX nicknames show. The event runs off the main thread: it reads LuckPerms (thread-safe) and `ranks.yml`'s names, never the Bukkit API. Cancelled messages (mutes) are skipped.
 - [ ] 9. Prestige cosmetics: install PlayerParticles (if it supports 26.3), and decide which styles each prestige level unlocks
 - [x] 10. Prestige resets the balance (decided 2026-11-12; *built 2026-11-12, untested*): `/prestige confirm` withdraws the whole balance, then promotes, and refunds if the promotion fails, like `/rankup`. `/prestige` says so first. Inventories and cells stay. Known gap: `/pay` lets a friend hold money across a prestige.
 - Later: a `/rank setup` command that creates all 26 groups and the track, if creating them by hand gets tedious.
@@ -487,7 +491,7 @@ So admins can limit TheBox's player commands per world or per server (see Comman
 Gang bank, alliances, friendly-fire rules, gang chat. See Gang above.
 
 ### ★ First playable release
-After M1–M6, plus M3's remaining step (chat tags). Deploy TheBox to the real server and gather player feedback before building further.
+After M1–M6, plus M3's remaining step (chat tags). Deploy TheBox to the real server and gather player feedback before building further. *2026-11-13:* chat tags are built, so every code step on this list exists; much of it is still untested in-game.
 
 ## 7. Open questions
 - ~~Rank-up costs~~: decided, set by hand per rank (see M3).
@@ -496,8 +500,8 @@ After M1–M6, plus M3's remaining step (chat tags). Deploy TheBox to the real s
 - ~~Player progress storage~~: decided, LuckPerms (see M3).
 - ~~Prestige resets the balance?~~ Decided: no, since rank costs already rise with prestige. *Changed 2026-11-12 (owner): yes*, because with god picks, banking at mine Z beats climbing (see Economy and pacing, and M3 step 10).
 - ~~Chat tags~~: decided, TheBox formats chat itself with [Paper's chat API](https://docs.papermc.io/paper/dev/chat-events/) (see Chat). PlaceholderAPI can be added later if a scoreboard or tab list needs ranks too.
-- **On-screen balance** *(asked for by players, 2026-11-08)*: a sidebar showing balance, rank and prestige. Either TheBox draws it with per-player scoreboards, which hides PvPManager's combat nametags because those are scoreboard teams, or TAB + PlaceholderAPI draws it from `%thebox_…%` placeholders that TheBox provides.
-- **Lifetime earnings** *(asked for by players, 2026-11-08)*: EssentialsX only stores the current balance. TheBox would count it itself, e.g. every `/sell` payout, saved per player. Still to decide what counts (just `/sell`, or shop sales and `/pay` too) and where it shows (a command, the sidebar, a leaderboard).
+- **On-screen balance** *(asked for by players, 2026-11-08)*: a sidebar showing balance, rank and prestige. Either TheBox draws it with per-player scoreboards, which hides PvPManager's combat nametags because those are scoreboard teams, or TAB + PlaceholderAPI draws it from `%thebox_…%` placeholders that TheBox provides. *2026-11-13:* TheBox's PlaceholderAPI expansion exists now (`%thebox_earned%`), so the TAB route only needs rank and prestige placeholders added to it.
+- ~~**Lifetime earnings**~~ *(asked for by players, 2026-11-08)*: decided and built 2026-11-13. Only `/sell` counts, shown by `/sell top` and a hologram (see M2).
 - ~~Server layout~~: decided 2026-11-08, a Velocity network (lobby, prison, minigames), with Multiverse-Core inside the prison server for mine and market worlds. See [server architecture](../../server-architecture.md).
 - ~~Prestige across seasons~~: decided 2026-11-10, a new season resets prestige too (see Seasons).
 - **Something to work toward** *(asked for by players, 2026-11-08)*: ask testers what they'd want. Candidates: rank unlocks shown in `/ranks`, the cut-down cells (see Cell), a marketplace unlocked at a higher rank (see Market).

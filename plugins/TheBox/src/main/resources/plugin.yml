@@ -7,8 +7,8 @@ api-version: '26.3'
 
 depend: [WorldEdit, WorldGuard, Vault, LuckPerms]
 # softdepend only orders loading: these enable first if installed. Multiverse-Core must load its worlds
-# before TheBox reads mines.yml and markets.yml.
-softdepend: [QuickShop-Hikari, Multiverse-Core]
+# before TheBox reads mines.yml and markets.yml; PlaceholderAPI must be up for TheBox to register its placeholders.
+softdepend: [QuickShop-Hikari, Multiverse-Core, PlaceholderAPI]
 
 permissions:
   thebox.admin:

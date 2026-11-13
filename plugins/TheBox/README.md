@@ -41,6 +41,9 @@ With the server **stopped**, put these jars directly in the server's `plugins/` 
 | QuickShop-Hikari | Player chest shops in market stalls, and the server booths |
 | PacketEvents | Shows the item floating above each QuickShop shop. Without it or ProtocolLib, QuickShop warns "Invalid display provider!" at startup; shops still work, just with no display. Use the `packetevents-spigot` jar, 2.14.0 or newer for 26.3. QuickShop's `shop.display-protocol` should be `packetevents`, its default. |
 | PlayerParticles | Particle cosmetics for prestige rewards. Check that it supports your Minecraft version first. |
+| PlaceholderAPI | Lets other plugins show TheBox's numbers: `%thebox_earned%` is a player's lifetime `/sell` earnings (section 7). With it, PvPManager's combat action bar also shows its values instead of raw `%pvpmanager_…%` text. |
+| ajLeaderboards | Ranks players by `%thebox_earned%` for the top sellers hologram (section 7). Needs PlaceholderAPI; 2.11.0 or newer for 26.3. |
+| DecentHolograms | Shows the top sellers board as floating text at spawn (section 7). Needs PlaceholderAPI. |
 
 Start the server once so every plugin writes its config files, then stop it.
 
@@ -298,6 +301,7 @@ thebox rank setcost z 46000000
 - Costs go up with prestige: each prestige level adds `prestige-multiplier` × the cost (default 0.5, so Prestige 2 pays 200%). Change it with `/thebox rank setprestigemultiplier 0.25`.
 - Prestiging resets the player's balance to 0, so nobody can bank money at Z and buy the whole ladder back at once. Players keep their items and cell, best pickaxe included, so a second run is quicker than the first: about 90 hours at 0.5. 0.7 makes it about as long as the first.
 - Names use [MiniMessage](https://docs.papermc.io/adventure/minimessage/format/) colors, e.g. `<light_purple>Endermite`.
+- **Chat shows each player's prestige and rank,** e.g. `[P2] [C] Name: message`, with no `[P…]` before the first prestige. The rank part is the rank's name from here, colors included, so keep names short. TheBox formats chat itself, so don't add another chat formatter such as EssentialsX Chat: whichever formats last wins.
 - Keep the ranks in `ranks.yml` in the same order as the `ranks` track. A rank that's on the track but missing from `ranks.yml` blocks `/rankup` until it's added.
 
 ## 7. Sell prices
@@ -352,6 +356,24 @@ Set a price per item (any item, not just blocks):
 - all food, above all whatever the free food kit gives;
 - nuggets, raw ore blocks (raw iron block, …) and storage blocks no mine contains (coal, copper, lapis, redstone);
 - ore blocks, so Silk Touch on ores is worthless.
+
+**Top sellers.** TheBox adds up what each player earns from `/sell`, and only from `/sell`: `/pay` and shop sales just move money between players, so counting them would let two friends pass the same money back and forth. `/sell top` shows the 10 players who've earned the most, plus the player's own place. The totals are kept in `plugins/TheBox/earnings.yml`. Prestige doesn't reset them; a new season does (section 16).
+
+To show the board as a hologram at spawn, install PlaceholderAPI, ajLeaderboards and DecentHolograms (section 1), restart, then in-game:
+1. Register the board: `/ajlb add %thebox_earned%`. Its name is `thebox_earned`.
+2. Add everyone who sold before the board existed: `/ajlb updatealloffline thebox_earned`. Otherwise players only show up once they next join.
+3. Stand where the hologram should be and create it, with a title line:
+   ```
+   /dh h create topsellers &6&lTop sellers
+   ```
+4. Add a line for each place, 1 to 10. The `1` after `topsellers` is the hologram's page, not the place:
+   ```
+   /dh lines add topsellers 1 &e1. &f%ajlb_lb_thebox_earned_1_alltime_name% &7- &a$%ajlb_lb_thebox_earned_1_alltime_value%
+   /dh lines add topsellers 1 &e2. &f%ajlb_lb_thebox_earned_2_alltime_name% &7- &a$%ajlb_lb_thebox_earned_2_alltime_value%
+   ```
+   …and so on up to 10.
+
+ajLeaderboards updates about once a minute, so a sale can take a minute to show on the hologram. `/sell top` is always current.
 
 ## 8. World protection (WorldGuard, in-game)
 
@@ -725,14 +747,14 @@ Its cooldown is `heal-cooldown` in `plugins/Essentials/config.yml` (default 60 s
 ## 14. Check that it works
 
 As a **non-op** player:
-1. Join, then in the console run `lp user <name> info`. The player should be in groups `default` and `a`. `/balance`, `/baltop` and `/pay` work. With an account that has never joined: you arrive at the spawn point, not on a roof, and get the starter kit.
+1. Join, then in the console run `lp user <name> info`. The player should be in groups `default` and `a`. `/balance`, `/baltop` and `/pay` work. Chat shows the rank before the name: `[A] Name: message` (or rank A's name from section 6). With an account that has never joined: you arrive at the spawn point, not on a roof, and get the starter kit.
 2. Breaking or placing blocks outside a mine is blocked (WorldGuard says so in chat).
 3. `/mine` opens a menu of the unlocked mines (with only one, it goes straight there); `/mine quarry` teleports there. Breaking blocks in the mine works; placing them doesn't. Within 8 blocks of the mine you have Night Vision (an ∞ icon at the top right). It stays while you walk around the rim, and goes once you're farther away. PvP works in every mine except the starter mine, and nowhere else. After hitting another player, `/mine` is blocked for 15 seconds, and logging out in that time kills you.
    - PvP levels need two non-op players a mine apart. In the lower player's mine, neither can hit the other (melee, arrows, or a splash or lingering potion of poison); the attacker sees "You can only fight players at your own level in this mine." Afterwards `/mine` still works for both: a blocked hit must not combat-tag anyone.
-4. Mine some blocks, then run `/sell all` (or `/sell hand`, `/sell worth`).
+4. Mine some blocks, then run `/sell all` (or `/sell hand`, `/sell worth`). `/sell top` lists you with what you've earned; after another `/sell all` your total goes up. With the hologram (section 7), you're on it within a minute.
 5. `/rankup list` shows the ladder with the player's rank marked and the next rank's cost; `/rankup help` lists the rank commands. `/rankup` buys the next rank (`/rankup max` buys as many as you can afford). The whole server sees an announcement.
 6. Walking into a locked mine is blocked with "You haven't unlocked … yet."
-7. At the top rank, `/prestige` explains what prestiging does, and `/prestige confirm` does it: the player goes back to `a`, joins `p1`, their balance goes to 0 (items and cell stay), and the server sees an announcement.
+7. At the top rank, `/prestige` explains what prestiging does, and `/prestige confirm` does it: the player goes back to `a`, joins `p1`, their balance goes to 0 (items and cell stay), and the server sees an announcement. Chat now shows `[P1] [A]` before their name, and `/sell top` still has their total.
 8. A non-op player without `thebox.marketplace.main` gets "You haven't unlocked any markets yet." from `/market`, and `/market main` says "You haven't unlocked that market." With it: `/market`, stand in a free stall, `/market rent`. Building works in your stall and nowhere else in the market. With `day-length-minutes: 2` and auto-renew off, the stall freezes after 2 minutes; after the grace period its contents show up in `/market claim`.
 9. A new player is told to type `/cell` when they join; `/cell` shows the price, `/cell buy` without enough money is refused, and with enough it takes the money, gives them a cell and takes them into it. The door opens from inside, with the inside button, and from outside. An admin who creates cells doesn't get one. Building works in the room and the front space, not in the walls. With `thebox.cell.size.2`, `/cell upgrade` carves the room bigger and leaves what's in it alone. With the tier's front saved (section 11, step 4): the cell has its door, and another non-op player can't press its button. Add a block to the front and `/thebox cell evict` the cell: only the added block goes to the impound, and the door comes back. Check a cell facing a different way too: its door and buttons should face the corridor. As an admin, `create ... here` is refused when standing one block off center would make the plot touch its neighbor's, and `/thebox cell delete` on a free cell makes its plot solid again.
 
@@ -791,6 +813,7 @@ Player data is spread over several plugins, and some of it can only be deleted w
    | `world/players/data/`, `world/players/advancements/`, `world/players/stats/` | Inventories, ender chests, XP, spawn points, recipes, advancements, statistics |
    | `plugins/Essentials/userdata/` | Balances (back to `starting-balance`), used kits, homes, nicknames, mail, mutes. Everyone counts as new again, so they get the starter kit. |
    | `plugins/PvPManager/database.db` | PvP toggles and newbie protection (PvPManager's default storage) |
+   | `plugins/TheBox/earnings.yml` | Lifetime `/sell` earnings (`/sell top` and the top sellers hologram) |
 4. **Start the server and wipe the in-game parts:**
    ```
    thebox cell wipe confirm
@@ -800,6 +823,7 @@ Player data is spread over several plugins, and some of it can only be deleted w
    lp bulkupdate users delete "permission ~~ group.p_"
    ```
    - **The market wipe** clears and frees every rented stall and empties every impound, including what evicted cells left there. Nothing goes to the impound. Server booths aren't stalls, so they stay.
+   - **With the top sellers hologram** (section 7), also run `ajlb reset thebox_earned`. ajLeaderboards keeps its own copy of the totals, which deleting `earnings.yml` doesn't touch.
    - **The bulk updates** remove every player's rank and prestige. Each one prints a confirmation command; run it.
    - `~~` uses SQL `LIKE` patterns, where `_` matches exactly one character ([Bulk editing](https://luckperms.net/wiki/Bulk-Editing)). So the first command removes the rank groups `a`–`z`, and the second removes `p1`–`p9`. If you have `p10` or higher, also run it with `"permission ~~ group.p__"`.
    - Check the `lp listgroups` output first: no other group may match. For example, a group named `pvp` would match `group.p__`.
