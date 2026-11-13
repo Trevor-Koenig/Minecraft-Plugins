@@ -392,7 +392,7 @@ Out of the box, anyone can break and place anything. Prison servers protect the 
    /rg addmember spawn <builder>
    ```
    Members can build in a region; everyone else can't.
-3. Each mine gets its own region in the next section.
+3. Mines need nothing here: TheBox creates their regions itself (section 9, step 4).
 
 Good to know:
 - **Ops bypass all protection.** To see what players see, toggle it off with `/rg bypass`, or test as a non-op.
@@ -409,14 +409,16 @@ Mines are created from a WorldEdit selection, so this part needs a player. Repea
    ```
    /thebox mine create quarry
    ```
-4. Let players break blocks in it. With the **same selection** still active, make a WorldGuard region named after the mine:
-   ```
-   /rg define mine_quarry
-   /rg flag mine_quarry block-break allow
-   /rg flag mine_quarry mob-spawning deny
-   /rg flag mine_quarry pvp allow
-   ```
-   Players can now break blocks in the mine, but not place any (placing stays protected), so they can't place torches either. Instead, TheBox gives everyone within 8 blocks of a mine Night Vision, sideways or above, and takes it away when they're farther. The edge is out in the open, not at the mine itself, so walking around the rim or hopping in and out of holes doesn't flash it on and off. A Night Vision potion a player drank keeps working. **PvP is on in every mine except the starter mine** (the one rank `a` unlocks), so new players are safe; for that one, skip the `pvp allow` line. In the other mines, players only fight others at the mine's level (step 11). Players who die drop their items as usual. Make the region from the **same selection** as the mine: the level rule only covers the mine itself, so if the region is bigger, the extra strip has PvP without it. If the mine sits inside another region that has its own flags, raise the mine's priority: `/rg setpriority mine_quarry 10`.
+   TheBox does the rest of the setup itself: its WorldGuard regions (step 4), its resets (step 8) and where players arrive (step 7). What's left is the mix (step 5), the rank that unlocks it (step 10) and its PvP level (step 11). A selection that overlaps another mine is refused.
+4. **Protection and PvP are automatic.** TheBox creates two WorldGuard regions for each mine and keeps them matching it:
+   - `mine_quarry`, exactly the mine: players can break blocks but not place any (so no torches either), and no mobs spawn.
+   - `mine_quarry_pvp`, the mine plus 8 blocks on every side: PvP, once the mine has a level (step 11). It doesn't change who can build there (it has `passthrough allow`).
+
+   Instead of torches, everyone in that same area gets Night Vision, and loses it again outside. The edge is out in the open, not at the mine itself, so walking around the rim or hopping in and out of holes doesn't flash it on and off. A Night Vision potion a player drank keeps working. Players who die drop their items as usual.
+
+   Don't edit these regions' size, flags or priority by hand: at every start TheBox puts them back, and it renames and deletes the regions with their mine. Other flags you add are kept, except through a rename.
+   - **Keep spawn, the market and cells at least 8 blocks from any mine.** A PvP area's priority (10) beats theirs, so players at the mine's level could fight there. TheBox warns about overlaps when you set a level, and in the console at startup.
+   - **Updating from an older TheBox:** at its first start, TheBox takes over the `mine_<id>` regions you made by hand. It fits each one to its mine, sets the flags above, removes their `pvp` flag (the PvP area handles PvP now) and adds the PvP areas. Check the console for overlap warnings.
 5. Set the block mix. Weights are relative, so these two make 70% stone and 30% coal ore:
    ```
    /thebox mine addblock quarry stone 70
@@ -438,7 +440,7 @@ Mines are created from a WorldEdit selection, so this part needs a player. Repea
    ```
    /thebox mine settp quarry
    ```
-8. Automatic resets, by time and/or when a percentage has been mined (0 turns either off):
+8. Automatic resets. New mines reset every hour. To change that, or to also reset once a percentage has been mined (0 turns either off):
    ```
    /thebox mine setresettime quarry 600
    /thebox mine setresetpercent quarry 80
@@ -456,7 +458,7 @@ Mines are created from a WorldEdit selection, so this part needs a player. Repea
     ```
     /thebox mine setlevel quarry 2
     ```
-    A player's level is the highest level among the mines they've unlocked. In a mine, players only fight others whose level matches the mine's, so higher ranks can't come back down to pick off newer players (and can't be hit there either). **A mine without a level has no PvP**, so set one on every PvP mine. Ops have every mine, so test this with non-op players.
+    A player's level is the highest level among the mines they've unlocked. In a mine and within 8 blocks of it, players only fight others whose level matches the mine's, so higher ranks can't come back down to pick off newer players (and can't be hit there either). **A mine without a level has no PvP**, so set one on every PvP mine, and leave the starter mine (the one rank `a` unlocks) at 0 so new players are safe. Where two mines' PvP areas overlap, players outside both mines can only fight if both mines allow it. Ops have every mine, so test this with non-op players.
 
 Check everything with `/thebox mine list`; it shows each mine's level.
 
@@ -749,8 +751,8 @@ Its cooldown is `heal-cooldown` in `plugins/Essentials/config.yml` (default 60 s
 As a **non-op** player:
 1. Join, then in the console run `lp user <name> info`. The player should be in groups `default` and `a`. `/balance`, `/baltop` and `/pay` work. Chat shows the rank before the name: `[A] Name: message` (or rank A's name from section 6). With an account that has never joined: you arrive at the spawn point, not on a roof, and get the starter kit.
 2. Breaking or placing blocks outside a mine is blocked (WorldGuard says so in chat).
-3. `/mine` opens a menu of the unlocked mines (with only one, it goes straight there); `/mine quarry` teleports there. Breaking blocks in the mine works; placing them doesn't. Within 8 blocks of the mine you have Night Vision (an ∞ icon at the top right). It stays while you walk around the rim, and goes once you're farther away. PvP works in every mine except the starter mine, and nowhere else. After hitting another player, `/mine` is blocked for 15 seconds, and logging out in that time kills you.
-   - PvP levels need two non-op players a mine apart. In the lower player's mine, neither can hit the other (melee, arrows, or a splash or lingering potion of poison); the attacker sees "You can only fight players at your own level in this mine." Afterwards `/mine` still works for both: a blocked hit must not combat-tag anyone.
+3. `/mine` opens a menu of the unlocked mines (with only one, it goes straight there); `/mine quarry` teleports there. Breaking blocks in the mine works; placing them doesn't. Within 8 blocks of the mine you have Night Vision (an ∞ icon at the top right). It stays while you walk around the rim, and goes once you're farther away. PvP works in every mine except the starter mine, and within 8 blocks of them, but nowhere else. `/rg info` inside a mine lists `mine_quarry` and `mine_quarry_pvp`. After hitting another player, `/mine` is blocked for 15 seconds, and logging out in that time kills you.
+   - PvP levels need two non-op players a mine apart. In the lower player's mine, neither can hit the other (melee, arrows, or a splash or lingering potion of poison); the attacker sees "Only players at this mine's level can fight here." The same goes a few blocks outside the mine. Afterwards `/mine` still works for both: a blocked hit must not combat-tag anyone.
 4. Mine some blocks, then run `/sell all` (or `/sell hand`, `/sell worth`). `/sell top` lists you with what you've earned; after another `/sell all` your total goes up. With the hologram (section 7), you're on it within a minute.
 5. `/rankup list` shows the ladder with the player's rank marked and the next rank's cost; `/rankup help` lists the rank commands. `/rankup` buys the next rank (`/rankup max` buys as many as you can afford). The whole server sees an announcement.
 6. Walking into a locked mine is blocked with "You haven't unlocked … yet."

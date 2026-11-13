@@ -17,6 +17,7 @@ import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
 import io.papermc.paper.command.brigadier.argument.ArgumentTypes;
 import io.papermc.paper.registry.RegistryKey;
+import java.util.List;
 import java.util.Map;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Location;
@@ -45,6 +46,14 @@ public class MineAdminCommand {
         new SimpleCommandExceptionType(new LiteralMessage("That block isn't in this mine's mix."));
     private static final SimpleCommandExceptionType TELEPORT_INSIDE =
         new SimpleCommandExceptionType(new LiteralMessage("Stand outside the mine: a teleport point inside it would bury players on reset."));
+    private static final SimpleCommandExceptionType RESERVED_SUFFIX =
+        new SimpleCommandExceptionType(new LiteralMessage("Mine ids can't end in " + Mine.AREA_REGION_SUFFIX
+            + ": WorldGuard region mine_<id>" + Mine.AREA_REGION_SUFFIX + " is a mine's PvP area."));
+    private static final DynamicCommandExceptionType OVERLAPS_MINE =
+        new DynamicCommandExceptionType(id -> new LiteralMessage("Your selection overlaps mine " + id + ". Mines can't overlap: their resets would fight over the same blocks."));
+
+    /** New mines reset on their own every hour. Percentage resets stay off until an admin sets one. */
+    private static final int DEFAULT_RESET_SECONDS = 60 * 60;
 
     private final MineManager mines;
 
@@ -135,7 +144,7 @@ public class MineAdminCommand {
     private int help(CommandContext<CommandSourceStack> ctx) {
         ctx.getSource().getSender().sendRichMessage("""
             <gold>TheBox mine commands:</gold>
-            <yellow>/thebox mine create \\<id></yellow> <gray>- create a mine from your WorldEdit selection</gray>
+            <yellow>/thebox mine create \\<id></yellow> <gray>- create a mine from your WorldEdit selection, with its WorldGuard regions</gray>
             <yellow>/thebox mine list</yellow> <gray>- list all mines</gray>
             <yellow>/thebox mine reset \\<mine></yellow> <gray>- refill a mine now</gray>
             <yellow>/thebox mine addblock \\<mine> \\<block> \\<weight></yellow> <gray>- add or change a block in the mix</gray>
@@ -143,7 +152,7 @@ public class MineAdminCommand {
             <yellow>/thebox mine setresettime \\<mine> \\<seconds></yellow> <gray>- automatic reset interval (0 = off)</gray>
             <yellow>/thebox mine setname \\<mine> \\<name></yellow> <gray>- the name players see (MiniMessage, e.g. \\<gold>Gold Rush)</gray>
             <yellow>/thebox mine setresetpercent \\<mine> \\<percent></yellow> <gray>- reset (after a 10-second countdown) once this % is mined (0 = off)</gray>
-            <yellow>/thebox mine setlevel \\<mine> \\<level></yellow> <gray>- PvP level: players only fight in mines at their own level (0 = no PvP)</gray>
+            <yellow>/thebox mine setlevel \\<mine> \\<level></yellow> <gray>- PvP level: in and around a mine, players only fight at their own level (0 = no PvP)</gray>
             <yellow>/thebox mine setsurface \\<mine> \\<block>|auto|none</yellow> <gray>- the block on the faces players can see at each reset, so no ores show; auto (the default) is the mix's most common block</gray>
             <yellow>/thebox mine settp \\<mine></yellow> <gray>- set the teleport point to where you stand</gray>
             <yellow>/thebox mine rename \\<mine> \\<id></yellow> <gray>- change a mine's id, and so its permission</gray>
@@ -163,6 +172,9 @@ public class MineAdminCommand {
         if (MineCommand.SUBCOMMANDS.contains(id)) {
             throw RESERVED_ID.create(id);
         }
+        if (id.endsWith(Mine.AREA_REGION_SUFFIX)) {
+            throw RESERVED_SUFFIX.create();
+        }
         if (mines.get(id) != null) {
             throw MINE_EXISTS.create(id);
         }
@@ -176,19 +188,30 @@ public class MineAdminCommand {
         BlockVector3 min = selection.getMinimumPoint();
         BlockVector3 max = selection.getMaximumPoint();
         Mine mine = new Mine(id, player.getWorld(), min.x(), min.y(), min.z(), max.x(), max.y(), max.z());
+        for (Mine other : mines.getAll()) {
+            if (other.getWorld().equals(mine.getWorld()) && other.getBox().overlaps(mine.getBox())) {
+                throw OVERLAPS_MINE.create(other.getId());
+            }
+        }
         mine.getBlocks().put(BlockType.STONE, 100);
-        mines.add(mine);
+        mine.setResetIntervalSeconds(DEFAULT_RESET_SECONDS);
+        mines.add(mine); // also creates its WorldGuard regions
 
         player.sendRichMessage("<green>Created mine <white>" + id + "</white> from "
             + min.x() + ", " + min.y() + ", " + min.z() + " to " + max.x() + ", " + max.y() + ", " + max.z() + ".</green>");
-        player.sendRichMessage("<gray>It's all stone for now: use /thebox mine addblock to set the mix, then /thebox mine reset " + id + ".");
+        player.sendRichMessage("<gray>Its WorldGuard regions are set up: <white>" + mine.getRegionId() + "</white> (players can break blocks, no mobs spawn) and <white>"
+            + mine.getAreaRegionId() + "</white> (" + Mine.AREA_MARGIN + " blocks around it: PvP once it has a level). It resets every "
+            + DEFAULT_RESET_SECONDS / 60 + " minutes.");
+        player.sendRichMessage("<gray>Still to do: the mix (/thebox mine addblock, it's all stone for now, then /thebox mine reset " + id
+            + "), its PvP level (/thebox mine setlevel " + id + " \\<level>), and the rank that unlocks it: <white>lp group \\<rank> permission set "
+            + mine.getPermission() + " true");
         return Command.SINGLE_SUCCESS;
     }
 
     private int delete(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
         Mine mine = getMine(ctx);
         mines.remove(mine);
-        ctx.getSource().getSender().sendRichMessage("<green>Deleted mine <white>" + mine.getId() + "</white>. Its blocks were left as they are.");
+        ctx.getSource().getSender().sendRichMessage("<green>Deleted mine <white>" + mine.getId() + "</white> and its WorldGuard regions. Its blocks were left as they are.");
         return Command.SINGLE_SUCCESS;
     }
 
@@ -202,13 +225,16 @@ public class MineAdminCommand {
         if (MineCommand.SUBCOMMANDS.contains(newId)) {
             throw RESERVED_ID.create(newId);
         }
+        if (newId.endsWith(Mine.AREA_REGION_SUFFIX)) {
+            throw RESERVED_SUFFIX.create();
+        }
         if (!mines.rename(mine, newId)) {
             throw MINE_EXISTS.create(newId);
         }
         // LuckPerms grants still name the old permission. LuckPerms' bulk update renames a permission everywhere
         // (groups and users, keeping expiry and contexts), but only from the console, with a confirmation code.
         String update = "lp bulkupdate all update permission thebox.mine." + newId + " \"permission == thebox.mine." + oldId + "\"";
-        ctx.getSource().getSender().sendRichMessage("<green>Renamed mine <white>" + oldId + "</white> to <white>" + newId + "</white>. "
+        ctx.getSource().getSender().sendRichMessage("<green>Renamed mine <white>" + oldId + "</white> to <white>" + newId + "</white>, and its WorldGuard regions with it. "
             + "<gray>Players now need <white>thebox.mine." + newId + "</white>. To move the existing grants, run this in the console "
             + "(click to copy): <click:copy_to_clipboard:'" + update + "'><yellow>" + update + "</yellow></click>");
         return Command.SINGLE_SUCCESS;
@@ -337,13 +363,19 @@ public class MineAdminCommand {
     private int setLevel(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
         Mine mine = getMine(ctx);
         int level = IntegerArgumentType.getInteger(ctx, "level");
-        mine.setLevel(level);
-        mines.save();
-        String message = level == 0
-            ? "<green>Mine <white>" + mine.getId() + "</white> has no level now, so there's no PvP in it."
-            : "<green>Mine <white>" + mine.getId() + "</white> is now level " + level
-                + ". Players fight there only if " + level + " is the highest level among the mines they can enter.";
-        ctx.getSource().getSender().sendRichMessage(message);
+        mines.setLevel(mine, level); // also turns PvP on or off in its area region
+        CommandSender sender = ctx.getSource().getSender();
+        if (level == 0) {
+            sender.sendRichMessage("<green>Mine <white>" + mine.getId() + "</white> has no level now, so there's no PvP in or around it.");
+            return Command.SINGLE_SUCCESS;
+        }
+        sender.sendRichMessage("<green>Mine <white>" + mine.getId() + "</white> is now level " + level + ". Players fight in it, and within "
+            + Mine.AREA_MARGIN + " blocks of it, only if " + level + " is the highest level among the mines they can enter.");
+        List<String> overlapping = mines.regionsInArea(mine);
+        if (!overlapping.isEmpty()) {
+            sender.sendRichMessage("<yellow>Its PvP area overlaps " + String.join(", ", overlapping) + ", so players at level " + level
+                + " can fight there too. Keep spawn, the market and cells " + Mine.AREA_MARGIN + " blocks away from mines.");
+        }
         return Command.SINGLE_SUCCESS;
     }
 

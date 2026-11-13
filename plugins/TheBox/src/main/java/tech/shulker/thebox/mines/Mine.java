@@ -6,9 +6,16 @@ import java.util.Map;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.BlockType;
+import tech.shulker.thebox.regions.Box;
 
 /** A cuboid region that refills with a weighted mix of blocks. */
 public class Mine {
+
+    /**
+     * A mine's area reaches this many blocks past the mine on every side. Inside it, players get Night Vision, and
+     * PvP follows the mine's level (its WorldGuard region is {@link #getAreaRegionId()}).
+     */
+    public static final int AREA_MARGIN = 8;
 
     private String id;
     private final World world;
@@ -93,6 +100,40 @@ public class Mine {
             && location.getBlockX() >= minX - margin && location.getBlockX() <= maxX + margin
             && location.getBlockY() >= minY - margin && location.getBlockY() <= maxY + margin
             && location.getBlockZ() >= minZ - margin && location.getBlockZ() <= maxZ + margin;
+    }
+
+    /** True if the location is in the mine's area: the mine itself, or within AREA_MARGIN blocks of it. */
+    public boolean isInArea(Location location) {
+        return isNear(location, AREA_MARGIN);
+    }
+
+    public Box getBox() {
+        return new Box(minX, minY, minZ, maxX, maxY, maxZ);
+    }
+
+    public Box getAreaBox() {
+        return getBox().expand(AREA_MARGIN);
+    }
+
+    /** The WorldGuard region that lets players break blocks in the mine. MineManager keeps it matching the mine. */
+    public String getRegionId() {
+        return regionId(id);
+    }
+
+    /** The WorldGuard region over the mine's area, which allows PvP once the mine has a level. */
+    public String getAreaRegionId() {
+        return areaRegionId(id);
+    }
+
+    static String regionId(String mineId) {
+        return "mine_" + mineId;
+    }
+
+    /** Mine ids can't end in this, so a mine's area region never has another mine's region id. */
+    static final String AREA_REGION_SUFFIX = "_pvp";
+
+    static String areaRegionId(String mineId) {
+        return regionId(mineId) + AREA_REGION_SUFFIX;
     }
 
     /** Where /mine sends players: the custom point if set, otherwise standing on the center of the mine's top. */

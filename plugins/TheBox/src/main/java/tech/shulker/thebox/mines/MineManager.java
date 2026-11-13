@@ -10,6 +10,11 @@ import com.sk89q.worldedit.function.pattern.RandomPattern;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.regions.CuboidRegion;
 import com.sk89q.worldedit.world.block.BaseBlock;
+import com.sk89q.worldguard.protection.flags.Flags;
+import com.sk89q.worldguard.protection.flags.StateFlag;
+import com.sk89q.worldguard.protection.managers.RegionManager;
+import com.sk89q.worldguard.protection.regions.ProtectedCuboidRegion;
+import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,6 +49,8 @@ import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
+import tech.shulker.thebox.regions.Box;
+import tech.shulker.thebox.regions.Regions;
 import tech.shulker.thebox.utils.SavedLocation;
 
 /** Owns all mines: storage in mines.yml, resetting, and the automatic-reset timer. */
@@ -108,11 +115,20 @@ public class MineManager implements Listener {
     public void add(Mine mine) {
         unloadedMines.remove(mine.getId()); // a new mine with the same id replaces an inactive one
         mines.put(mine.getId(), mine);
+        syncRegions(mine);
         save();
     }
 
     public void remove(Mine mine) {
         mines.remove(mine.getId());
+        removeRegions(mine);
+        save();
+    }
+
+    /** Sets the mine's PvP level, and its area region's pvp flag to match. */
+    public void setLevel(Mine mine, int level) {
+        mine.setLevel(level);
+        syncRegions(mine);
         save();
     }
 
@@ -124,11 +140,74 @@ public class MineManager implements Listener {
         if (mines.containsKey(newId) || unloadedMines.containsKey(newId)) {
             return false;
         }
+        removeRegions(mine); // WorldGuard regions can't be renamed: drop the old ids, sync under the new ones
         mines.remove(mine.getId());
         mine.setId(newId);
         mines.put(newId, mine);
+        syncRegions(mine);
         save();
         return true;
+    }
+
+    // ---------------------------------------------------------------- WorldGuard regions
+
+    /** Like stalls and cells, so a mine's regions win over a bigger region around them (a mine hall, say). */
+    private static final int REGION_PRIORITY = 10;
+
+    /**
+     * Makes the mine's two WorldGuard regions match it (see Regions.sync), creating any that are missing:
+     * <ul>
+     *   <li>The mine region, exactly the mine: players can break blocks (placing stays protected) and no mobs spawn.
+     *       Its pvp flag is cleared, because older versions of the README had admins set it there by hand.</li>
+     *   <li>The area region, the mine plus AREA_MARGIN blocks: PvP once the mine has a level. Passthrough makes it
+     *       a flags-only region, so it never changes who can build, say in a cell it overlaps.</li>
+     * </ul>
+     */
+    private void syncRegions(Mine mine) {
+        Regions.sync(plugin.getLogger(), mine.getWorld(), mine.getRegionId(), mine.getBox(), REGION_PRIORITY, List.of(),
+            region -> {
+                region.setPriority(REGION_PRIORITY);
+                region.setFlag(Flags.BLOCK_BREAK, StateFlag.State.ALLOW);
+                region.setFlag(Flags.MOB_SPAWNING, StateFlag.State.DENY);
+                region.setFlag(Flags.PVP, null);
+            });
+        Regions.sync(plugin.getLogger(), mine.getWorld(), mine.getAreaRegionId(), mine.getAreaBox(), REGION_PRIORITY, List.of(),
+            region -> {
+                region.setPriority(REGION_PRIORITY);
+                region.setFlag(Flags.PASSTHROUGH, StateFlag.State.ALLOW);
+                region.setFlag(Flags.PVP, mine.getLevel() > 0 ? StateFlag.State.ALLOW : null);
+            });
+    }
+
+    private void removeRegions(Mine mine) {
+        Regions.remove(plugin.getLogger(), mine.getWorld(), mine.getRegionId());
+        Regions.remove(plugin.getLogger(), mine.getWorld(), mine.getAreaRegionId());
+    }
+
+    /**
+     * Other WorldGuard regions (not mines') that the mine's area overlaps. Once the mine has a level, players at that
+     * level can fight there too: the area's priority beats a lower region's pvp deny, such as spawn's.
+     */
+    public List<String> regionsInArea(Mine mine) {
+        RegionManager manager = Regions.manager(mine.getWorld());
+        if (manager == null) {
+            return List.of();
+        }
+        Set<String> mineRegions = new HashSet<>();
+        for (Mine other : mines.values()) {
+            mineRegions.add(other.getRegionId());
+            mineRegions.add(other.getAreaRegionId());
+        }
+        Box area = mine.getAreaBox();
+        List<String> overlapping = new ArrayList<>();
+        ProtectedRegion probe = new ProtectedCuboidRegion("thebox_probe", area.min(), area.max());
+        for (ProtectedRegion region : manager.getApplicableRegions(probe).getRegions()) {
+            if (!mineRegions.contains(region.getId()) && !region.getId().equals(ProtectedRegion.GLOBAL_REGION)) {
+                overlapping.add(region.getId());
+            }
+        }
+        overlapping.sort(null);
+        return overlapping;
     }
 
     // ---------------------------------------------------------------- resetting
@@ -330,18 +409,15 @@ public class MineManager implements Listener {
     private static final PotionEffect MINE_NIGHT_VISION =
         new PotionEffect(PotionEffectType.NIGHT_VISION, PotionEffect.INFINITE_DURATION, 0, true, false, true);
 
-    /** Players within this many blocks of a mine (sideways or above) have TheBox's Night Vision. */
-    private static final int NIGHT_VISION_MARGIN = 8;
-
     /**
-     * Mines get dark below the surface, so players in or near one have Night Vision. The edge is NIGHT_VISION_MARGIN
+     * Mines get dark below the surface, so players in a mine's area have Night Vision. The edge is Mine.AREA_MARGIN
      * blocks out, not the mine box itself: there, walking along the rim or hopping in and out of a hole would flash it
      * on and off. Only TheBox's own is taken away: a Night Vision potion keeps running, and TheBox's takes over when
      * it ends. Checked on every block-to-block move, so it also comes back after milk or a death.
      */
     private void updateNightVision(Player player, Location location) {
         PotionEffect current = player.getPotionEffect(PotionEffectType.NIGHT_VISION);
-        boolean near = isNearAnyMine(location, NIGHT_VISION_MARGIN);
+        boolean near = isNearAnyMine(location, Mine.AREA_MARGIN);
         if (near && current == null) {
             player.addPotionEffect(MINE_NIGHT_VISION);
         } else if (!near && current != null && current.isInfinite()) {
@@ -367,20 +443,31 @@ public class MineManager implements Listener {
     // ---------------------------------------------------------------- PvP in mines
 
     /**
-     * The mine in which the PvP rule stops this attacker hurting this victim, or null if it doesn't. Inside a mine,
-     * PvP only happens between players at the mine's level; level 0 means no PvP (see design.md, PvP). The rule only
-     * ever takes PvP away: WorldGuard separately decides where PvP is possible at all.
+     * The mine whose PvP rule stops this attacker hurting this victim, or null if none does. In a mine's area, PvP
+     * only happens between players at the mine's level; level 0 means no PvP (see design.md, PvP). Inside a mine, that
+     * mine decides. Around mines, where two areas can overlap, every mine whose area it is must allow the hit. The
+     * rule only ever takes PvP away: WorldGuard separately decides where PvP is possible at all.
      */
     private Mine blockingMine(Player attacker, Player victim) {
         if (attacker == victim) {
             return null; // hurting yourself (your own arrow or potion) works as in vanilla
         }
-        Mine mine = getMineAt(victim.getLocation());
-        if (mine == null) {
-            return null; // outside mines, WorldGuard's rules are all there is
+        Location location = victim.getLocation();
+        Mine inside = getMineAt(location);
+        if (inside != null) {
+            return blocks(inside, attacker, victim) ? inside : null;
         }
+        for (Mine mine : mines.values()) {
+            if (mine.isInArea(location) && blocks(mine, attacker, victim)) {
+                return mine;
+            }
+        }
+        return null; // away from mines, WorldGuard's rules are all there is
+    }
+
+    private boolean blocks(Mine mine, Player attacker, Player victim) {
         int level = mine.getLevel();
-        return level == 0 || levelOf(attacker) != level || levelOf(victim) != level ? mine : null;
+        return level == 0 || levelOf(attacker) != level || levelOf(victim) != level;
     }
 
     /** Hits: melee, arrows, tridents, splash potions of harming. */
@@ -394,8 +481,8 @@ public class MineManager implements Listener {
         if (mine != null) {
             event.setCancelled(true);
             attacker.sendActionBar(MiniMessage.miniMessage().deserialize(mine.getLevel() == 0
-                ? "<red>There's no PvP in this mine."
-                : "<red>You can only fight players at your own level in this mine."));
+                ? "<red>There's no PvP at this mine."
+                : "<red>Only players at this mine's level can fight here."));
         }
     }
 
@@ -509,6 +596,19 @@ public class MineManager implements Listener {
                 mine.setSurface(type);
             }
             mines.put(id, mine);
+        }
+
+        // Syncing at load also takes over mine_<id> regions that admins made by hand before TheBox managed them.
+        // Overlaps are checked once every mine is known, so other mines' regions aren't reported.
+        for (Mine mine : mines.values()) {
+            syncRegions(mine);
+        }
+        for (Mine mine : mines.values()) {
+            List<String> overlapping = mine.getLevel() > 0 ? regionsInArea(mine) : List.of();
+            if (!overlapping.isEmpty()) {
+                plugin.getLogger().warning("Mine " + mine.getId() + "'s PvP area overlaps " + String.join(", ", overlapping)
+                    + ": players at level " + mine.getLevel() + " can fight there too (README section 9, step 4).");
+            }
         }
     }
 
