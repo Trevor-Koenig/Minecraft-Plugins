@@ -95,7 +95,7 @@ public class Mine {
             && location.getBlockZ() >= minZ - margin && location.getBlockZ() <= maxZ + margin;
     }
 
-    /** Where /mines sends players: the custom point if set, otherwise standing on the center of the mine's top. */
+    /** Where /mine sends players: the custom point if set, otherwise standing on the center of the mine's top. */
     public Location getTeleport() {
         if (customTeleport != null) {
             return customTeleport;

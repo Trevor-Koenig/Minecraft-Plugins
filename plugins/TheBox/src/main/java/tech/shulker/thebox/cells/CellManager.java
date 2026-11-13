@@ -604,16 +604,17 @@ public class CellManager implements Listener {
     }
 
     /**
-     * The default sizes (see design: a size every third rank, A to Y). Prices are placeholders, like ranks.yml's,
-     * except the first cell's 2000: a small first goal, so players play a while before they get a cell.
+     * The default sizes (see design: a size every third rank, A to Y). Each size costs about the default cost of the
+     * rank that unlocks it (ranks.yml), so every size costs more than the one before. The first cell's 2000 is a small first
+     * goal, so players play a while before they get a cell. README section 11 lists them.
      */
     private void addDefaultTiers() {
         tiers.put(1, new CellTier(1, List.of(
-            new CellTier.Size(3, 3, 3, 2000), new CellTier.Size(5, 5, 3, 4000), new CellTier.Size(7, 7, 3, 8000)), List.of()));
+            new CellTier.Size(3, 3, 3, 2_000), new CellTier.Size(5, 5, 3, 19_000), new CellTier.Size(7, 7, 3, 55_000)), List.of()));
         tiers.put(2, new CellTier(2, List.of(
-            new CellTier.Size(11, 11, 6, 32000), new CellTier.Size(13, 13, 6, 20000), new CellTier.Size(15, 15, 6, 24000)), List.of()));
+            new CellTier.Size(11, 11, 6, 730_000), new CellTier.Size(13, 13, 6, 1_800_000), new CellTier.Size(15, 15, 6, 4_300_000)), List.of()));
         tiers.put(3, new CellTier(3, List.of(
-            new CellTier.Size(19, 19, 8, 56000), new CellTier.Size(21, 21, 8, 32000), new CellTier.Size(23, 23, 8, 36000)), List.of()));
+            new CellTier.Size(19, 19, 8, 8_500_000), new CellTier.Size(21, 21, 8, 18_000_000), new CellTier.Size(23, 23, 8, 36_000_000)), List.of()));
     }
 
     /** Reads a tier's front: one "side up out block-data" line per block (see CellTier.FrontBlock). */

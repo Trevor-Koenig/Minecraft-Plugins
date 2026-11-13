@@ -24,6 +24,7 @@ import tech.shulker.thebox.market.ImpoundMenu;
 import tech.shulker.thebox.market.MarketManager;
 import tech.shulker.thebox.sell.VaultEconomy;
 import tech.shulker.thebox.utils.Durations;
+import tech.shulker.thebox.utils.Teleports;
 
 /**
  * The player command: /cell goes to your cell, and its subcommands visit, upgrade, trust helpers, and handle
@@ -202,7 +203,7 @@ public class CellCommand {
         if (location == null) {
             throw fail("That cell's world isn't loaded right now. Try again later.");
         }
-        player.teleport(location);
+        Teleports.teleportOrFail(player, location);
     }
 
     // ---------------------------------------------------------------- information

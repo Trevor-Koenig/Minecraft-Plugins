@@ -17,14 +17,14 @@ import org.bukkit.command.CommandSender;
 import tech.shulker.thebox.sell.VaultEconomy;
 
 /** The admin command: /thebox rank setname|setcost|setprestigemultiplier|reload. Mounted under /thebox, which checks thebox.admin. */
-public class RankCommand {
+public class RankAdminCommand {
 
     private static final DynamicCommandExceptionType UNKNOWN_RANK =
         new DynamicCommandExceptionType(id -> new LiteralMessage("Unknown rank: " + id));
 
     private final RankManager ranks;
 
-    public RankCommand(RankManager ranks) {
+    public RankAdminCommand(RankManager ranks) {
         this.ranks = ranks;
     }
 
@@ -75,7 +75,7 @@ public class RankCommand {
 
     private int help(CommandContext<CommandSourceStack> ctx) {
         ctx.getSource().getSender().sendRichMessage("""
-            <gold>TheBox rank commands:</gold> <gray>(the ladder itself: /ranks, which shows admins the rank ids)</gray>
+            <gold>TheBox rank commands:</gold> <gray>(the ladder itself: /rankup list, which shows admins the rank ids)</gray>
             <yellow>/thebox rank setname \\<rank> \\<name></yellow> <gray>- the name players see (MiniMessage, e.g. \\<light_purple>Shulker)</gray>
             <yellow>/thebox rank setcost \\<rank> \\<cost></yellow> <gray>- what ranking up to it costs</gray>
             <yellow>/thebox rank setprestigemultiplier \\<multiplier></yellow> <gray>- extra cost per prestige level (0.5 = +50%)</gray>

@@ -171,6 +171,9 @@ public class MarketAdminCommand {
         if (!MarketManager.isValidId(id)) {
             throw fail("Market ids may only use lowercase letters, numbers and _.");
         }
+        if (MarketCommand.SUBCOMMANDS.contains(id)) {
+            throw fail("A market can't be called <id>: /market <id> is already a command.", Placeholder.unparsed("id", id));
+        }
         if (market.get(id) != null) {
             throw fail("A market called <id> already exists.", Placeholder.unparsed("id", id));
         }
@@ -183,6 +186,7 @@ public class MarketAdminCommand {
         sender.sendRichMessage("<green>Created market <white>" + id + "</white>."
             + (sender instanceof Player ? " Players arrive where you're standing (change it with settp)." : " Set where players arrive with settp.")
             + " Add stalls with /thebox market stall create " + id + " \\<stall> \\<rent>.");
+        sender.sendRichMessage("<gray>It's locked until a rank unlocks it: lp group \\<rank> permission set " + m.getPermission() + " true");
         return Command.SINGLE_SUCCESS;
     }
 

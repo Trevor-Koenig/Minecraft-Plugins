@@ -17,6 +17,7 @@ import io.papermc.paper.command.brigadier.argument.ArgumentTypes;
 import io.papermc.paper.command.brigadier.argument.resolvers.selector.PlayerSelectorArgumentResolver;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Logger;
 import net.kyori.adventure.text.Component;
@@ -26,17 +27,28 @@ import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Location;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemType;
 import tech.shulker.thebox.menu.Menu;
 import tech.shulker.thebox.sell.VaultEconomy;
 import tech.shulker.thebox.utils.Durations;
+import tech.shulker.thebox.utils.Teleports;
 
 /**
- * The player command: /market goes to the market (or picks one from a menu), and its subcommands rent and
- * manage a stall: rent, extend, info, autorenew, trust, untrust, unrent, claim.
+ * The player command: /market goes to a market you've unlocked (or picks one from a menu), /market <market>
+ * goes straight to one, and its subcommands rent and manage a stall: rent, extend, info, autorenew, trust,
+ * untrust, unrent, claim.
  */
 public class MarketCommand {
+
+    /**
+     * Words /market itself uses; keep in sync with createNode. Brigadier always prefers a matching literal over an
+     * argument, so a market with one of these ids could never be reached with /market <id>; /thebox market create
+     * refuses them.
+     */
+    public static final Set<String> SUBCOMMANDS =
+        Set.of("help", "rent", "extend", "info", "autorenew", "trust", "untrust", "unrent", "claim");
 
     private final MarketManager market;
     private final Logger logger;
@@ -84,51 +96,93 @@ public class MarketCommand {
                 .executes(this::unrentInfo)
                 .then(Commands.literal("confirm").executes(this::unrent)))
             .then(Commands.literal("claim").executes(this::claim))
+            .then(Commands.argument("market", StringArgumentType.word())
+                .suggests((ctx, builder) -> {
+                    // Only suggest markets this player can actually go to.
+                    for (Marketplace m : unlockedMarkets(ctx.getSource().getSender())) {
+                        if (m.getId().startsWith(builder.getRemainingLowerCase())) {
+                            builder.suggest(m.getId());
+                        }
+                    }
+                    return builder.buildFuture();
+                })
+                .executes(this::goTo))
             .build();
+    }
+
+    private List<Marketplace> unlockedMarkets(CommandSender sender) {
+        return market.getAll().stream()
+            .filter(m -> sender.hasPermission(m.getPermission()))
+            .toList();
     }
 
     // ---------------------------------------------------------------- going to a market
 
     private int go(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
         Player player = ctx.getSource().getPlayerOrThrow();
-        List<Marketplace> all = new ArrayList<>(market.getAll());
-        if (all.isEmpty()) {
-            throw fail("There's no market yet.");
+        List<Marketplace> unlocked = unlockedMarkets(player);
+        if (unlocked.isEmpty()) {
+            player.sendRichMessage("<gray>You haven't unlocked any markets yet.");
+            return Command.SINGLE_SUCCESS;
         }
-        if (all.size() == 1) {
-            teleport(player, all.getFirst());
+        if (unlocked.size() == 1) {
+            teleport(player, unlocked.getFirst());
             return Command.SINGLE_SUCCESS;
         }
         // Several markets: let the player pick one from a chest menu.
-        int rows = Math.min(6, (all.size() + 8) / 9);
+        int rows = Math.min(6, (unlocked.size() + 8) / 9);
         Menu menu = new Menu(player.getServer(), rows, Component.text("Markets"));
-        for (int slot = 0; slot < all.size() && slot < rows * 9; slot++) {
-            Marketplace m = all.get(slot);
-            long free = m.getStalls().values().stream().filter(stall -> !stall.isRented()).count();
-            menu.setButton(slot, Menu.icon(ItemType.CHEST, MiniMessage.miniMessage().deserialize(m.getDisplayName()), List.of(
-                    Component.text(free + " of " + m.getStalls().size() + " stalls free", NamedTextColor.GRAY),
-                    Component.text("Click to go there", NamedTextColor.GRAY))),
+        for (int slot = 0; slot < unlocked.size() && slot < rows * 9; slot++) {
+            Marketplace m = unlocked.get(slot);
+            List<Component> lore = new ArrayList<>();
+            if (!m.getStalls().isEmpty()) { // store markets have booths, not stalls
+                long free = m.getStalls().values().stream().filter(stall -> !stall.isRented()).count();
+                lore.add(Component.text(free + " of " + m.getStalls().size() + " stalls free", NamedTextColor.GRAY));
+            }
+            lore.add(Component.text("Click to go there", NamedTextColor.GRAY));
+            menu.setButton(slot, Menu.icon(ItemType.CHEST, MiniMessage.miniMessage().deserialize(m.getDisplayName()), lore),
                 clicker -> teleport(clicker, m));
         }
         menu.open(player);
         return Command.SINGLE_SUCCESS;
     }
 
+    private int goTo(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        Player player = ctx.getSource().getPlayerOrThrow();
+        Marketplace m = market.get(StringArgumentType.getString(ctx, "market"));
+        // Same message whether the market doesn't exist or is locked, so players can't probe for hidden ones.
+        if (m == null || !player.hasPermission(m.getPermission())) {
+            throw fail("You haven't unlocked that market.");
+        }
+        teleport(player, m);
+        return Command.SINGLE_SUCCESS;
+    }
+
     private static void teleport(Player player, Marketplace m) {
+        // Checked here too, so a menu opened before the player lost access can't take them there.
+        if (!player.hasPermission(m.getPermission())) {
+            player.sendRichMessage("<red>You haven't unlocked that market.");
+            return;
+        }
         Location location = m.getTeleport() == null ? null : m.getTeleport().toLocation();
         if (location == null) {
             player.sendRichMessage("<red><market><red> isn't open yet.", marketPlaceholder(m));
             return;
         }
-        player.teleport(location);
-        player.sendRichMessage("<green>Welcome to </green><market><green>! Stand in a free stall and use /market info to see its rent.",
+        if (!Teleports.teleport(player, location)) {
+            return;
+        }
+        player.sendRichMessage(m.getStalls().isEmpty()
+                ? "<green>Welcome to </green><market><green>!"
+                : "<green>Welcome to </green><market><green>! Stand in a free stall and use /market info to see its rent.",
             marketPlaceholder(m));
     }
 
     private int help(CommandContext<CommandSourceStack> ctx) {
         ctx.getSource().getSender().sendRichMessage("""
             <gold>Market:</gold>
-            <yellow>/market</yellow> <gray>- go to the market</gray>
+            <yellow>/market</yellow> <gray>- pick one of your markets to go to</gray>
+            <yellow>/market \\<market></yellow> <gray>- go straight to one</gray>
             <yellow>/market info</yellow> <gray>- your stalls, or the stall you're standing in</gray>
             <yellow>/market rent [days]</yellow> <gray>- rent the free stall you're standing in</gray>
             <yellow>/market extend \\<days></yellow> <gray>- pay rent ahead</gray>

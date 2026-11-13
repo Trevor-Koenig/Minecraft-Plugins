@@ -18,6 +18,7 @@ permissions:
     description: Rent a market stall (grant it to the rank that unlocks renting)
     default: op
   # Per-mine access (thebox.mine.<id>) isn't listed here because mine ids are created in-game.
+  # Neither is per-market access (thebox.marketplace.<id>), for the same reason.
   # Cell sizes (thebox.cell.size.<n>, n = 2, 3, ...) aren't either: how many there are depends on cells.yml.
   # Undeclared permissions default to op-only; ranks will grant them to players later.
 

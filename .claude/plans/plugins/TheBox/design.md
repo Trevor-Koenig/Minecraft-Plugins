@@ -23,7 +23,7 @@ A region that refills with a weighted mix of blocks.
 | `region` | A cuboid in one world, defined from the admin's WorldEdit selection. |
 | `blocks` | Weighted block mix, e.g. stone 70, coal_ore 20, iron_ore 10. |
 | `reset` | A timer and/or "when X% has been mined." |
-| `teleport` | Where `/mines` sends players. |
+| `teleport` | Where `/mine` sends players. |
 | `permission` | `thebox.mine.<id>`, required to enter or teleport. Mines are **not** tied 1:1 to ranks. |
 | `level` | A number that orders the mines; 0 means not set. `/thebox mine setlevel`. A *player's* level is the highest level among the mines they can enter. PvP uses it (see PvP). |
 
@@ -61,7 +61,7 @@ A player-run market area where players buy or rent **stalls**, build their store
 - **Decided (2026-11-08): TheBox custom-codes all market logic** (stalls, renting, eviction, `/market`); only the shop interfaces come from QuickShop-Hikari. The usual stall-rental plugins look unmaintained anyway (AreaShop's last release was 2019; AdvancedRegionMarket's was March 2025). Stalls are the same machinery as cells (a WorldGuard region a player rents or owns, plus payments), so one shared TheBox module serves both.
 - **When rent lapses** *(decided 2026-11-08: the impound flow; grace period and impound expiry lengths still to pick)*: prepaid rent that auto-renews from the balance, warnings, then a grace period where the stall stays intact; after that, eviction moves everything (container contents, the blocks themselves as items, item frames and armor stands) into the player's impound (`/market claim`), and the stall resets to empty. Optionally, unclaimed impound is auto-sold at market value after a while (unpriced or customized items count as $0).
 - Clearing a stall with WorldEdit doesn't fire block events, so TheBox must remove that stall's QuickShop shops through QuickShop's API, or QuickShop would keep "ghost" shops.
-- ~~*(idea, 2026-11-08)* A better-located marketplace unlocked at a higher rank~~: dropped 2026-11-10. The server has one player market plus the server's booths (see `README.md`, "Server booths"); there are too few players to split them. `thebox.market.rent` stays a single permission.
+- ~~*(idea, 2026-11-08)* A better-located marketplace unlocked at a higher rank~~: dropped 2026-11-10. The server has one player market plus the server's booths (see `README.md`, "Server booths"); there are too few players to split them. `thebox.market.rent` stays a single permission. *2026-11-12:* four rank-gated store markets (server booths only) are planned for pickaxes; see M5 step 10.
 
 ### Cell
 A player's own personal space, a classic prison feature. **Redesigned 2026-11-09**; what changed from the 2026-11-08 design is at the end of this section.
@@ -78,7 +78,7 @@ A player's own personal space, a classic prison feature. **Redesigned 2026-11-09
   | 3 | 19×19 (S, move) → 21×21 (V) → 23×23 (Y) | 8 |
 
   - Buying size *n* (2–9) needs `thebox.cell.size.<n>`, granted to its rank group like mine unlocks, so `/ranks` can list it.
-  - Default prices: about the cost of the rank that unlocks the size; tier moves cost twice that. The first cell costs $2,000 *(decided 2026-11-10)*, a small first goal so players play a while before they get one; `/cell` shows the price and `/cell buy` pays. Cells add about 40 hours on top of the 100-hour ladder (see Economy and pacing). They're optional: players who invest in cells reach Z later.
+  - Default prices: about the cost of the rank that unlocks the size *(2026-11-12: tier moves no longer cost twice that, which had made size 7 cost more than size 8)*. The first cell costs $2,000 *(decided 2026-11-10)*, a small first goal so players play a while before they get one; `/cell` shows the price and `/cell buy` pays. Cells add about 25 hours on top of the 100-hour ladder (see Economy and pacing). They're optional: players who invest in cells reach Z later.
 - **Tier moves are by hand** *(decided 2026-11-09)*. Buying size 4 or 7 gives the player a free cell in the next tier's block. They keep the old cell for 7 days (`/cell old`) to carry things over; shulker boxes are the moving boxes. On `/cell release`, or when the time is up, whatever is left goes to their **impound** through the stall clearer (Silk Touch drops, containers emptied, item frames and armor stands), and the old cell is reset to its starting room and freed. Nothing is copied, so nothing can duplicate.
 - **Doors need no code:** WorldGuard stops non-members using doors, buttons, pressure plates and levers inside a region ([What's protected](https://worldguard.enginehub.org/en/latest/regions/scope/)), so only the owner and trusted helpers can open a cell door. **Never set `use allow` on `__global__`:** its flags also apply inside regions that don't set them, so it would open every cell door.
 - **Commands:** `/cell` (home: inside the room, just behind the front wall; the same goes for `/cell buy`, `/cell old` and tier moves. From 2026-11-10 to 2026-11-11 it went to the front instead, in case the door couldn't be opened from inside. That was reverted because the tier front can include a button inside the room), `/cell visit <player>` (to a free spot in their front space, e.g. straight from a mine. If the owner has built over the middle, `Cell#standingSpot` finds another spot, and the visit is refused if there's no room), `/cell upgrade` (also a chest menu), `/cell trust|untrust`, `/cell old`, `/cell release`. PvPManager blocks commands during combat, so `/cell` can't be used to escape a fight (check in testing).
@@ -88,7 +88,7 @@ A player's own personal space, a classic prison feature. **Redesigned 2026-11-09
 
 ### PvP
 - PvP is allowed **in mines** only. That's WorldGuard config: `pvp deny` everywhere else (`__global__` and spawn), `pvp allow` in mine regions.
-- **Combat logging** (quitting or teleporting out mid-fight) needs a plugin. **PvPManager** supports 26.3 (checked 2026-11-08); its combat tag can block commands like `/mines` during a fight.
+- **Combat logging** (quitting or teleporting out mid-fight) needs a plugin. **PvPManager** supports 26.3 (checked 2026-11-08); its combat tag can block commands like `/mine` during a fight.
 - **Decided 2026-11-08:** PvP in **every mine except the starter mine** (the one rank `a` unlocks), so new players are safe. Dying drops items as usual (vanilla; `keepInventory` stays off). Mine resets during fights need no special handling.
 - **Only in your own mine** *(planned 2026-11-08; testers worried that higher-rank players would come down to lower mines to kill weaker ones)*. Inside a mine, PvP only happens between players whose level equals the mine's level (see Mine `level`). Decided 2026-11-08:
   - **Rules use levels, not single mines,** so several mines can share a level with no special case.
@@ -141,7 +141,7 @@ Planned 2026-11-08 (from the first player test): a store at spawn where players 
   - **Food:** mining barely uses any: 0.005 exhaustion per block, about 4–5 food points an hour. The free kit covers that, so store food is for fights, where healing costs 1.5 food points per HP. Ordinary food costs about $0.80 per point of hunger plus saturation. Beetroot isn't sold, because the test server's kit gives it. The store's prices cap what players can charge for food in stalls: if cell farms come, raise store food or stop selling steak and salmon.
   - **Golden apples** (8 gold ingots and an apple, about 2× material) are the PvP cost. A fixed price gets relatively cheaper as incomes rise, so revisit it with PvP balance.
   - Iron and gold gear smelts into nuggets, so keep nuggets unpriced.
-  - Left out until rank costs follow the formula: diamond armor, netherite, Efficiency IV–V, Protection, Fortune.
+  - Left out until rank costs follow the formula: diamond armor, netherite, Efficiency IV–V, Protection, Fortune. *Superseded 2026-11-12:* vanilla pickaxes for mines A–F, then god-tier pickaxes from G/H, sold in rank-gated store markets and given in rank-up kits (see Economy and pacing).
 - Chosen over a GUI: no code to maintain, players learn the shop interface they'll use in the market, and the world gets a landmark. An item that opens a GUI was ruled out because items drop on death in PvP mines. Revisit with a TheBox chest menu only if gear needs to be locked by rank.
 
 ### Seasons
@@ -167,8 +167,8 @@ Agreed 2026-11-08: a new season resets all player progress. **A checklist in `RE
 
 ### Economy and pacing
 Decided 2026-11-09, for a small server (3–10 players):
-- **A first run from A to Z takes about 100 hours of mining; A–C is a tutorial.** Time per rank-up: B 15 min, C 30 min, D 1 h, then 18 minutes more for each rank, up to 7.6 h for Z. Players reach M after about 24 hours and R after about 47. Cells add about 40 hours on top.
-- **Rank cost = hours for that rank × income per hour of the mine before it.** Measure each mine's income: mine for 5 minutes with realistic gear, `/sell all`, ×12. Aim for each mine to pay about 1.15× the one before. The placeholder costs in `ranks.yml` (+4000 per rank) don't follow this. The formula's costs, assuming the starter mine pays $14,400 an hour, are in `README.md` section 6 as `setcost` commands (b $3,600 to z $3.1M, $17.9M in all), and matching cell prices are in section 11 *(2026-11-11)*.
+- **A first run from A to Z takes about 100 hours of mining; A–C is a tutorial.** Time per rank-up: B 15 min, C 30 min, D 1 h, then 18 minutes more for each rank, up to 7.6 h for Z. Players reach M after about 24 hours and R after about 47. Cells add about 25 hours on top (the 100 hours exclude them; longer is preferred to shorter, owner 2026-11-12).
+- **Rank cost = hours for that rank × income per hour of the mine before it.** Measure each mine's income: mine for 5 minutes with realistic gear, `/sell all`, ×12. Aim for each mine to pay about 1.15× the one before. *Defaults since 2026-11-12:* `ranks.yml` is first written with the formula's costs: mines A–F with vanilla pickaxes from $14,400 an hour, then god-tier pickaxes from G (b $3,600, h $360k, z $46M, $213M in all; the first formula ended at $3.1M, the old placeholders were +4000 per rank). Cell sizes default to about the cost of their unlocking rank. Both are listed in `README.md`, sections 6 and 11, with `setcost` commands for older servers.
 - **Money scale** *(decided 2026-11-10)*: the starter mine pays about $4 a block, about $240 a minute. That's 4× the first draft, so every price is a whole number, and the first run ends in the millions (under the formula, Z costs about 7.6 h of the Y mine's income, about $3M). Scaling everything by the same factor changes nothing in play, so it was settled before players have balances.
 - **Sell prices** *(first draft 2026-11-10; suggested values in `README.md`, section 7)*: set once, then tune each mine through its block mix. Changing a price changes every mine that drops the item.
   - Filler: cobblestone and stone $2, cobbled deepslate and deepslate $3. Stone matches cobblestone so Silk Touch and smelting add nothing. Deepslate pays 1.5× because it takes about 1.5× as long to mine: hardness 3 against stone's 1.5, plus a 6-tick pause after every block ([Breaking](https://minecraft.wiki/w/Breaking)).
@@ -184,7 +184,34 @@ Decided 2026-11-09, for a small server (3–10 players):
   - Wood mine: logs, level 0, unlocked at `a`. Logs unpriced or very cheap, so it doesn't compete with the rank mines.
   - Lootbox mine: special-item drops are planned (an admin-set item list). Drops should check the player still has access when they break the block, since a player on top of the mine can break blocks below.
 - **Few players means thin player trading:** `/sell`, the store and rank-ups carry the economy. Suggested: keep stall rent low and the grace period long (`grace-days: 7`, `max-prepay-days: 14`).
-- **Open:** `prestige-multiplier` (0.5 makes a second run 150 hours; 0.25 may suit a small server), and season length, which should be long enough for regulars to reach Z.
+- **Decided 2026-11-12 (owner), for the second draft of prices and mixes** (draft in progress, not yet in `README.md`):
+  - **Ores overlap:** each mine mixes several ores, and older ores (iron, lapis, gold) stay in later mines for variety. Diamonds and emeralds pay more and are rarer.
+  - **Pace:** the owner reached B and bought a cell in about an hour at the first draft's prices, slower than the model assumes. Longer runs are preferred to shorter, so the model isn't slowed down to match.
+  - **Potions become a mechanic** (brewing and crafting chains); not designed yet. Vanilla can't brew Haste, but Paper can add brewing recipes (`PotionBrewer#addPotionMix`), so Haste is a choice. It matters: Haste II with Efficiency V breaks stone instantly.
+  - **Gear is gated by store markets:** several store markets unlocked by rank, so players can buy a little ahead. Needs per-market permissions. Breakable picks come first, unbreakable ones in later markets. The best picks come rarely, from rank-up and prestige kits, which needs rank-up rewards in TheBox. Picks above vanilla levels change the speed model: Efficiency VI breaks stone instantly.
+  - **Cells are workshops:** crafted items (ingots, armor, pistons…) sell for somewhat less than 2× their raw materials, so cells, cell upgrades and autocrafters pay off. Selling raw must stay a fully viable route. Markups decided the same day: raw materials × 1.25 smelted, × 1.5 crafted from one material, × 1.8 components from several materials; recipes that can be undone stay exact; wood counts as free (`README.md` section 7). At 1.8× on everything a crafter would reach Z in about 72 hours with every cell bought, against 100 selling raw; with the tiers, about 85–95.
+  - **Prices and all 26 mines written to `README.md`** (sections 7 and 9), with the pickaxe track below.
+  - **God-tier pickaxes from G/H** (owner): past vanilla levels, so most blocks break instantly. Players feel the progress, block choice is free (hardness stops mattering), and obsidian can go in mines so players can enchant, since vanilla levels are below the god picks. Modeled consequences:
+    - Efficiency IX breaks hardness 3 instantly (stone, deepslate, stone ores, end stone), XII hardness 5 (deepslate ores, storage blocks). Obsidian (50) never does: 20 ticks with Efficiency X.
+    - Speed then caps at how fast players aim, about 210 blocks a minute modeled (5 a second while mining, 70% of the time); measure it once a god pick exists. Mines G onward would pay 3–4× their targets, and 4–7× with Fortune III.
+    - Past instant, more Efficiency does nothing, so later god picks need another axis: Fortune levels (III ×2.2, V ×3.1, X ×5.6 ore drops), unbreakable, or custom area-breaking enchants (TheBox code).
+    - Enchanting tables give everyone Fortune III and PvP enchants. Books need leather, which has no source (no animals), so the store would sell books or leather, and bookshelves (45 books for level 30) become a lever. A high `repair_cost` item component on god picks stops anvils adding to them.
+    - **Decided (owner):** rank costs absorb the speed, by the formula, so mines stay full; Fortune is the god picks' upgrade path; every rank from G adds something, with Efficiency X not early.
+    - **Pickaxe track** (one gain per rank, in `README.md` section 9): G Efficiency VI + Fortune III + Unbreaking III; Fortune IV–VI at H–J; K Unbreakable; Fortune VII–VIII at L–M; N Efficiency IX; Fortune IX–XV at O–U; V Efficiency XII; Fortune XVI–XIX at W–Z. Only VI, IX and XII change anything in stone and deepslate mines with ordinary ores; VII, VIII and X matter only with concrete, with cobblestone and bricks, and with cobbled deepslate and deepslate bricks, so they're kept for themed mines.
+    - **Mines G–Z** grow income at least 1.2× a rank and value per block at least 4% a rank. Ore stays at 13–25%, because Fortune makes each ore worth more. G–M stone with obsidian (0.5%), N–U deepslate with ordinary ores (instant at IX), V–Z deepslate ores (instant at XII) with storage blocks as 0.5% jackpots. 1.25× growth would push late mines to 43% ore.
+    - **Costs** (`RankManager.DEFAULT_COSTS`, cells follow): H $360k (6.5× G, the god-pick jump), then 1.2–1.5× a rank, Z $46M, ladder $213M. Cells about 25 hours.
+    - **Decided (owner), later the same day:** picks are sold in store markets, grouped a little, each priced from its rank's cost so it's mainly worth buying at that rank. Buying early stays possible: freedom over gating. No `/autosell` for now (`/sell all` is enough); keep the idea in case playtesting asks for it. God picks survive prestige, because prestige keeps inventories and cells.
+    - **Modeled consequences** (a player who spends to finish soonest, 210 blocks a minute):
+      - The first god pick earns 5–6× vanilla gear in mines A–F, so its price alone can't hold it back: at its rank's cost it's still bought at C. It needs a hard gate at G (a market that opens at G, or the G kit).
+      - A breakable god pick lasts 6,244 blocks (1,561 × 4 with Unbreaking III), about 30 minutes. At a rank's cost, G–J picks would cost more an hour than they earn. Price them by wear (8% of what a block earns: about $9k–$18k), or raise their durability with the `max_damage` item component.
+      - Inside a market, buying the best pick you can afford straight away beats buying each tier at its rank, so the number of markets is the number of pick upgrades players feel. Even with a market per rank, one Fortune level (5–15% more income) isn't worth 25–100% of a rank's cost, so tiers get skipped.
+      - Ladder time with picks bought: four markets (opening at G, K, N and V) at a quarter of the rank's cost take about 100 hours; at the full rank cost, about 130.
+      - The kept pick shortens prestige 1 from 150 to 90 hours at `prestige-multiplier` 0.5 (B–G take 20 minutes); 0.7 gives about 100. The kept balance matters more: a player can bank prestige 1's $320M at mine Z ($7.4M an hour, about 43 hours), then prestige and buy every rank at once, which beats climbing.
+    - **Decided (owner), third round:** four store markets of server booths, opening at G, K, N and V (which also gates the first god pick), with each pick at its rank's full cost; four markets leave room to tune prices per market. Prestige resets the balance (see M3 step 10).
+    - **Modeled with full-cost picks:** H–J breakable picks don't pay for themselves: they use up 48–64% of what they earn with `max_damage` 8,000 and 24–32% at 16,000. They only become worth buying at about 32,000, when they last about 14 hours, longer than players use them before K. The G pick works: at $55k with `max_damage` about 8,000 it lasts about 3.5 hours at mine G and costs about 9% of what it earns (the store's 8% rule). A player who buys well buys about five picks (G at G, L at K, N and S at N, V at V) and reaches Z in about 140 hours. W–Z are never worth their price, which suits rare kits.
+    - **Still open:** what market 1 sells (just the G pick, or H–J too, with more durability); which tiers kits give; prestige-kit picks only matter if they beat the Z pick (Fortune XX…). The 210 blocks a minute needs measuring.
+  - **Themed mines, eventually,** with fillers other than stone (sandstone, netherrack, end stone…). A filler's hardness sets how much digging there is per ore, and its price sets how much of the income comes from digging. Soft fillers break instantly once the pick is fast enough (netherrack from diamond Efficiency II, sandstone from Efficiency IV).
+- **Open:** `prestige-multiplier` (with the pick kept, 0.5 makes a second run about 90 hours and 0.7 about 100; see the god-pick notes), and season length, which should be long enough for regulars to reach Z.
 
 ## 3. Integrations
 | Plugin | Role | Dependency |
@@ -197,6 +224,7 @@ Decided 2026-11-09, for a small server (3–10 players):
 | WorldGuard | From launch: protects the world (`__global__` passthrough deny) and lets players break blocks in mines (a `mine_<id>` region per mine with `block-break allow`). Who may *enter* a mine stays TheBox's job (rank permissions). Setup in `README.md`. | Runs alongside TheBox; no code dependency yet |
 | WorldGuard API | Rentable market stalls and cells: TheBox creates regions and adds renters/owners as members (stall plugins look unmaintained, see Market) | Code dependency (from M5) |
 | QuickShop-Hikari | Player chest shops in stalls (and maybe cells) | Runs alongside TheBox; probably no code dependency |
+| PacketEvents | QuickShop-Hikari's floating item displays (or ProtocolLib); without either, shops work but show no display | Optional, no code dependency. 2.14.0 adds 26.3 |
 | PvPManager | Combat tagging, combat-log handling | Runs alongside TheBox (from M4) |
 | Multiverse-Core *(optional)* | Several worlds on the prison server (mines, market, …). Loads before TheBox (`softdepend`) so mine and market worlds exist when TheBox loads its files. Keep its per-world PvP on in worlds with PvP mines. Also handles spawning: respawns, and first joins (`spawn.first-spawn-override`). | `softdepend` |
 
@@ -208,15 +236,15 @@ Economy: **decided 2026-11-08, no custom economy.** We considered giving TheBox 
 Compare against existing prison servers before finalizing.
 
 **Players**
-- `/mines`: list or menu of mines → teleport
-- `/rankup`, `/rankup max`, `/ranks`, `/prestige`
+- `/mine`: menu of your mines (straight there with only one), `/mine <id>`, `/mine help` (renamed from `/mines` 2026-11-12)
+- `/rankup` (buys the next rank), `/rankup max`, `/rankup list` (the ladder; `/ranks` until 2026-11-12), `/rankup help`, `/prestige`
 - `/sell all`, `/sell hand`, `/autosell`
-- `/market`: teleport to the player market (permission-gated)
+- `/market`: menu of unlocked markets (straight there with one), `/market <id>`, and the stall subcommands
 - Balance, pay and baltop come from the economy plugin, not TheBox.
 
 Decided 2026-11-08: **every player command gets its own permission node**, `default: true`, so it works out of the box and admins can limit it with LuckPerms contexts (`world=…` on one server, `server=…` on a network) instead of TheBox hard-coding world names. See "Per-command permissions" in the milestones and [server architecture](../../server-architecture.md).
 
-**Admins**: all under one root, `/thebox` (decided 2026-11-08). Player commands stay short and top-level, like on other prison servers. Grouping admin commands gives one autocomplete entry point, avoids the `/mine` vs `/mines` mix-up, and keeps `/sell` player-only.
+**Admins**: all under one root, `/thebox` (decided 2026-11-08). Player commands stay short and top-level, like on other prison servers. Grouping admin commands gives one autocomplete entry point, frees the short names for players (`/mine` is the player command since 2026-11-12), and keeps `/sell` player-only.
 - `/thebox mine create|delete|list|reset|addblock|removeblock|setresettime|setresetpercent|setlevel|setname|settp|reload`
 - `/thebox price set|remove|list|reload`
 - `/thebox rank setname|setcost|setprestigemultiplier|reload` (edits `ranks.yml` in-game). The list moved to the player command `/ranks` (2026-11-08).
@@ -294,7 +322,7 @@ Comes before ranks so players can earn the money to rank up.
 Decisions (2026-11-07):
 - **Global prices:** one price per item type, everywhere. Per-mine prices or rank multipliers can come later.
 - **Any item can have a price,** not just mined blocks. That leaves room for crafting interplay later (craft something worth more than its parts).
-- **v1 commands:** `/sell hand` and `/sell all`. `/autosell` comes later.
+- **v1 commands:** `/sell hand` and `/sell all`. `/autosell` only if playtesting asks for it (owner, 2026-11-12).
 - **`/sell all` skips items with custom data** (renamed, enchanted, custom items), so nobody sells their gear by accident. Those items stay free for crafting interplay later.
 - **Economy: EssentialsX + VaultUnlocked.** It's a new server, so we chose for popularity and long-term support. EssentialsX's last release (2.22.0) lists only 26.1.2, but 26.3 support is merged and available in dev builds (2.22.1-dev). VaultUnlocked is the maintained Vault fork; it registers as `Vault`, so `depend: [Vault]` works.
 
@@ -338,7 +366,7 @@ Steps:
 - [ ] 1. Test server: add LuckPerms via `downloadPlugins`. By hand, create groups `a`, `b`, `c` on a `ranks` track, and `p1`, `p2` on a `prestige` track (just a few groups while developing). This is a chance to learn LuckPerms itself.
 - [x] 2. LuckPerms API `compileOnly` dependency (`net.luckperms:api:5.5`), `depend: [WorldEdit, Vault, LuckPerms]`, look up the API through Bukkit's ServicesManager *(built 2026-11-08)*
 - [x] 3. `ranks.yml` (display names, costs) plus `/thebox rank setname|setcost|list|reload` *(tested in the first player test, 2026-11-08; doesn't touch LuckPerms)*. The first start writes a–z with placeholder costs (b = 4000, c = 8000, …; ×4 since 2026-11-10).
-- [x] 4. `/ranks`: the ladder, with the player's current rank and the next cost *(built 2026-11-08 after the first player test, untested)*. Costs shown at the player's prestige; the console sees base costs; admins also see rank ids. Replaces `/thebox rank list`.
+- [x] 4. `/ranks`: the ladder, with the player's current rank and the next cost *(built 2026-11-08 after the first player test, untested)*. Costs shown at the player's prestige; the console sees base costs; admins also see rank ids. Replaces `/thebox rank list`. *Moved to `/rankup list` 2026-11-12 (M5 step 11).*
 - [x] 5. `/rankup`: charge through Vault, then promote along the track *(tested in the first player test, 2026-11-08)*
 - [x] 6. `/rankup max` *(tested in the first player test, 2026-11-08)*
 
@@ -352,12 +380,13 @@ Steps 2, 5 and 6, implementation notes:
 - `/rankup max` ranks up until the next one would fail, then announces once.
 - [x] 7. `/prestige`: at Z, promote on the `prestige` track and move back to `a` on the `ranks` track *(tested in the first player test, 2026-11-08)*
   - `/prestige` explains what will happen (or what the player still needs); `/prestige confirm` does it, because losing your rank by accident would hurt.
-  - Free: reaching the top rank is the cost. The balance is kept (open question below).
+  - Free: reaching the top rank is the cost. Step 10 resets the balance.
   - A first prestige uses LuckPerms' `ADDED_TO_FIRST_GROUP` result (adds `p1`), which the API counts as a success.
   - Rank costs scale with prestige: `cost × (1 + prestige-multiplier × prestige)`, default 0.5. Set with `/thebox rank setprestigemultiplier` or in `ranks.yml`.
   - Prestige-ups are announced to the whole server and written to the server log.
 - [ ] 8. Chat tags: `[P3] [C] Name: message` in chat
 - [ ] 9. Prestige cosmetics: install PlayerParticles (if it supports 26.3), and decide which styles each prestige level unlocks
+- [x] 10. Prestige resets the balance (decided 2026-11-12; *built 2026-11-12, untested*): `/prestige confirm` withdraws the whole balance, then promotes, and refunds if the promotion fails, like `/rankup`. `/prestige` says so first. Inventories and cells stay. Known gap: `/pay` lets a friend hold money across a prestige.
 - Later: a `/rank setup` command that creates all 26 groups and the track, if creating them by hand gets tedious.
 
 **Change of plan (2026-11-08):** the owner wants markets, cells and PvP in place before testing with real users, so the first release moves to after M6. (Gangs were also on that list, then paused.)
@@ -382,6 +411,18 @@ Steps (drafted 2026-11-08):
 - [x] 7. Impound: eviction and unrenting move container contents, blocks (as items) and item frames / armor stands into the player's impound (full item data kept), clear the stall, and `/market claim` opens it as a chest menu; auto-sell after 30 days
 - [x] 8. QuickShop-Hikari: shops only in your own stall, closed during the grace period, removed on eviction (through its API)
 - [x] 9. `README.md`: market setup
+- [x] 10. Store markets by rank (decided 2026-11-12; *built 2026-11-12, untested*): four marketplaces of server booths, opening at G, K, N and V.
+  - Every marketplace is locked by default (owner) and needs `thebox.marketplace.<id>`, granted by rank like mines. The node can't clash with `thebox.market.rent`. Upgrade note: the player market's node must be granted to `a`.
+  - `/market` opens a menu of unlocked markets (straight there if only one), and `/market <id>` goes straight to one. Locked markets stay hidden.
+  - `/thebox market create` refuses ids that match a `/market` subcommand, because Brigadier always picks a matching literal over an argument (owner chose this over a separate `/markets`).
+  - Walking in isn't blocked, since TheBox only knows a market's teleport point, so store markets are built sealed.
+  - Built: `Marketplace#getPermission`; `/market` filters by it (menus re-check on click); store markets' menu entries and welcome skip the stall text; `MarketCommand.SUBCOMMANDS` is the reserved list, which must match `createNode`; `create` prints the `lp` command that unlocks the new market.
+- [x] 11. Consistent player commands (owner, 2026-11-12; *built 2026-11-12, untested*). The rule: a feature's own command takes you there (a menu when there's a choice), `<name>` goes straight to one, `help` lists the rest.
+  - `/mine` replaces `/mines` outright (no alias: nobody has habits yet), with a menu (each mine's surface block as its icon), `/mine <id>` and `/mine help`. `/thebox mine create` and `rename` refuse the id `help`.
+  - `/rankup` still buys the next rank, with `/rankup max`, `/rankup list` (the old `/ranks`) and `/rankup help`. The owner first suggested a bare `/rankup` showing help with `/rankup now` to buy; kept as the action because it's the most-typed prison command and what players expect from other servers.
+  - `utils/Teleports` checks `Player#teleport`'s result, so `/mine`, `/market` and `/cell` never report a teleport that was cancelled.
+  - Classes match the market and cell pattern: `MineCommand` (player) and `MineAdminCommand`, `RankAdminCommand`; `RanksCommand` merged into `RankupCommand`.
+  - A TheBox `/warp` was considered and dropped: EssentialsX already has one, and players still need each feature's own command. `/sell` alone still shows help, since selling everything by accident is costly.
 
 All built 2026-11-08 and tested in the first player test, 2026-11-08. Implementation notes:
 - **A stall is the empty space players build in.** `stall create` refuses a selection with blocks in it, so everything in a stall belongs to its renter; the floor and walls stay outside the region and stay protected. Stall regions get priority 10, so they win inside a surrounding market region.
@@ -453,7 +494,7 @@ After M1–M6, plus M3's remaining step (chat tags). Deploy TheBox to the real s
 - ~~Rank names~~: decided, A–Z, each nameable (see M3). Mine names are still open.
 - ~~What prestige grants~~: decided, a chat tag and cosmetics (see M3).
 - ~~Player progress storage~~: decided, LuckPerms (see M3).
-- ~~Prestige resets the balance?~~ Decided: no, since rank costs already rise with prestige.
+- ~~Prestige resets the balance?~~ Decided: no, since rank costs already rise with prestige. *Changed 2026-11-12 (owner): yes*, because with god picks, banking at mine Z beats climbing (see Economy and pacing, and M3 step 10).
 - ~~Chat tags~~: decided, TheBox formats chat itself with [Paper's chat API](https://docs.papermc.io/paper/dev/chat-events/) (see Chat). PlaceholderAPI can be added later if a scoreboard or tab list needs ranks too.
 - **On-screen balance** *(asked for by players, 2026-11-08)*: a sidebar showing balance, rank and prestige. Either TheBox draws it with per-player scoreboards, which hides PvPManager's combat nametags because those are scoreboard teams, or TAB + PlaceholderAPI draws it from `%thebox_…%` placeholders that TheBox provides.
 - **Lifetime earnings** *(asked for by players, 2026-11-08)*: EssentialsX only stores the current balance. TheBox would count it itself, e.g. every `/sell` payout, saved per player. Still to decide what counts (just `/sell`, or shop sales and `/pay` too) and where it shows (a command, the sidebar, a leaderboard).

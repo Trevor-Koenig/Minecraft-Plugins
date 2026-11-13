@@ -110,13 +110,26 @@ public class RankManager {
         }
     }
 
-    /** a to z. The costs (b = 4000, c = 8000, ...) are placeholders, meant to be replaced by hand. */
+    /**
+     * Default costs, a to z (a is where players start, so its cost is unused). They follow the design's pacing formula,
+     * rounded: hours for the rank (B 15 min, C 30 min, D 1 h, then +18 min a rank) × an hour's income in the mine before
+     * it. Mines A to F, with vanilla pickaxes, pay from $14,400 an hour, each 1.15× the one before. From G, players have
+     * god-tier pickaxes that mine about 4× faster, and each mine pays at least 1.2× the one before. README sections 6
+     * and 9 list them.
+     */
+    private static final double[] DEFAULT_COSTS = {
+        0, 3_600, 8_300, 19_000, 28_000, 40_000, 55_000, 360_000, 530_000, 730_000, 990_000, 1_300_000, 1_800_000,
+        2_300_000, 3_500_000, 4_300_000, 5_500_000, 7_000_000, 8_500_000, 11_000_000, 14_000_000, 18_000_000,
+        23_000_000, 28_000_000, 36_000_000, 46_000_000
+    };
+
+    /** a to z, with DEFAULT_COSTS. */
     private void createDefaults() {
         for (char letter = 'a'; letter <= 'z'; letter++) {
             Rank rank = new Rank(String.valueOf(letter));
-            rank.setCost((letter - 'a') * 4000);
+            rank.setCost(DEFAULT_COSTS[letter - 'a']);
             ranks.put(rank.getId(), rank);
         }
-        plugin.getLogger().info("Created ranks.yml with ranks a to z and placeholder costs.");
+        plugin.getLogger().info("Created ranks.yml with ranks a to z and the default costs.");
     }
 }

@@ -39,6 +39,7 @@ With the server **stopped**, put these jars directly in the server's `plugins/` 
 |---|---|
 | Multiverse-Core | Several worlds (say, one for mines and one for the market), and where new players first arrive (section 2) |
 | QuickShop-Hikari | Player chest shops in market stalls, and the server booths |
+| PacketEvents | Shows the item floating above each QuickShop shop. Without it or ProtocolLib, QuickShop warns "Invalid display provider!" at startup; shops still work, just with no display. Use the `packetevents-spigot` jar, 2.14.0 or newer for 26.3. QuickShop's `shop.display-protocol` should be `packetevents`, its default. |
 | PlayerParticles | Particle cosmetics for prestige rewards. Check that it supports your Minecraft version first. |
 
 Start the server once so every plugin writes its config files, then stop it.
@@ -92,7 +93,7 @@ Then, in-game, stand where players should arrive and run `/mv setspawn`. Respawn
 
 **`plugins/PvPManager/config.yml`**
 
-The defaults already fit: a 15-second combat tag, commands blocked mid-fight (so `/mines` can't be used to escape), logging out mid-fight kills the player and drops everything, and its `/pvp` toggle can't switch PvP off inside regions with `pvp allow` (`WorldGuard Overrides: true`). Change or check:
+The defaults already fit: a 15-second combat tag, commands blocked mid-fight (so `/mine` can't be used to escape), logging out mid-fight kills the player and drops everything, and its `/pvp` toggle can't switch PvP off inside regions with `pvp allow` (`WorldGuard Overrides: true`). Change or check:
 - **Keep `Unsafe Teleports: false`.** Turning it on blocks *plugin* teleports during combat, including TheBox lifting players out of a resetting mine, which would bury them.
 - `Update Check` → `Auto Update: false`, so it never replaces itself with an untested version.
 - `Newbie Protection` (10 minutes without PvP for new players): optional, since new players only have the PvP-free starter mine anyway.
@@ -212,7 +213,7 @@ lp group default permission set essentials.balance true
 lp group default permission set essentials.balancetop true
 lp group default permission set essentials.pay true
 ```
-That's `/balance` (or `/bal`, `/money`), `/baltop` and `/pay`. They take effect right away, with no restart. Add others the same way, for example `essentials.msg` for `/msg` and `/r`. To see why a player does or doesn't have a permission: `lp user <name> permission check essentials.balance`. TheBox's own player commands (`/mines`, `/sell`, `/ranks`, `/rankup`, `/prestige`, `/market`, `/cell`) need no permission. Mine access (section 9), stall renting (section 10) and cell sizes (section 11) are granted by rank.
+That's `/balance` (or `/bal`, `/money`), `/baltop` and `/pay`. They take effect right away, with no restart. Add others the same way, for example `essentials.msg` for `/msg` and `/r`. To see why a player does or doesn't have a permission: `lp user <name> permission check essentials.balance`. TheBox's own player commands (`/mine`, `/sell`, `/rankup`, `/prestige`, `/market`, `/cell`) need no permission. Mine access (section 9), market access and stall renting (section 10) and cell sizes (section 11) are granted by rank.
 
 ## 4. LuckPerms: the prestige track (console)
 
@@ -249,19 +250,19 @@ WorldEdit is needed for selecting mine regions. `worldguard.*` is full WorldGuar
 
 ## 6. Rank names and costs
 
-The first start writes `plugins/TheBox/ranks.yml` with ranks `a` to `z` and **placeholder costs** (b = 4000, c = 8000, …). Replace them, either in-game:
+The first start writes `plugins/TheBox/ranks.yml` with ranks `a` to `z` and the **default costs** below. Change them, either in-game:
 ```
 /thebox rank setcost b 3600
 /thebox rank setname b <gray>B
 ```
-`/ranks` shows the ladder; for admins it also shows each rank's id.
+`/rankup list` shows the ladder; for admins it also shows each rank's id.
 Or edit `ranks.yml` by hand, then run `/thebox rank reload`. Reload right after editing: the next `/thebox rank` change saves the file and would overwrite unsaved hand edits.
 
-**Suggested costs.** A rank costs the hours planned for it × an hour's income in the mine before it:
+**Default costs.** A rank costs the hours planned for it × an hour's income in the mine before it:
 - **Hours:** B 15 minutes, C 30 minutes, D 1 hour, then 18 minutes more for each rank, up to 7.6 hours for Z. A first run from A to Z takes about 100 hours.
-- **Income:** these costs assume the starter mine pays about $14,400 an hour (section 7's $4 a block) and each mine about 1.15× the one before.
+- **Income:** mines A–F, mined with ordinary pickaxes, pay from about $14,400 an hour, each about 1.15× the one before. From G, players have god-tier pickaxes (section 9) that mine about 4× faster, and each mine pays at least 1.2× the one before.
 
-Costs start about 2.3× apart and end about 1.2× apart. Z costs $3.1M, and the whole ladder about $17.9M. Paste into the console:
+H costs 6.5× G, because the god-tier pickaxe arrives at G; after that, costs rise 1.2–1.5× a rank. Z costs $46M, and the whole ladder about $213M. A `ranks.yml` written by an older TheBox has other costs: flat placeholders (b = 4000, c = 8000, …) or the first formula's, which ended at $3.1M. To switch to these defaults without losing your rank names, paste into the console:
 ```
 thebox rank setcost b 3600
 thebox rank setcost c 8300
@@ -269,32 +270,33 @@ thebox rank setcost d 19000
 thebox rank setcost e 28000
 thebox rank setcost f 40000
 thebox rank setcost g 55000
-thebox rank setcost h 73000
-thebox rank setcost i 96000
-thebox rank setcost j 120000
-thebox rank setcost k 160000
-thebox rank setcost l 200000
-thebox rank setcost m 250000
-thebox rank setcost n 310000
-thebox rank setcost o 380000
-thebox rank setcost p 470000
-thebox rank setcost q 570000
-thebox rank setcost r 700000
-thebox rank setcost s 850000
-thebox rank setcost t 1000000
-thebox rank setcost u 1300000
-thebox rank setcost v 1500000
-thebox rank setcost w 1800000
-thebox rank setcost x 2200000
-thebox rank setcost y 2600000
-thebox rank setcost z 3100000
+thebox rank setcost h 360000
+thebox rank setcost i 530000
+thebox rank setcost j 730000
+thebox rank setcost k 990000
+thebox rank setcost l 1300000
+thebox rank setcost m 1800000
+thebox rank setcost n 2300000
+thebox rank setcost o 3500000
+thebox rank setcost p 4300000
+thebox rank setcost q 5500000
+thebox rank setcost r 7000000
+thebox rank setcost s 8500000
+thebox rank setcost t 11000000
+thebox rank setcost u 14000000
+thebox rank setcost v 18000000
+thebox rank setcost w 23000000
+thebox rank setcost x 28000000
+thebox rank setcost y 36000000
+thebox rank setcost z 46000000
 ```
 - To check a mine, mine it for 5 minutes with the gear players would have there, `/sell all`, and multiply by 12 for its hourly income. If it's far off, change its block mix rather than the cost.
-- For a steeper or flatter ladder, make each mine more or less than 1.15× richer than the one before, and work the costs out again.
+- For a steeper or flatter ladder, make each mine more or less rich than the one before (1.15× for A–F, at least 1.2× from G), and work the costs out again.
 - Cell prices follow these costs (section 11).
 
 - `cost` is what it costs to rank up **to** that rank. Rank `a` is where everyone starts, so its cost is never charged.
 - Costs go up with prestige: each prestige level adds `prestige-multiplier` × the cost (default 0.5, so Prestige 2 pays 200%). Change it with `/thebox rank setprestigemultiplier 0.25`.
+- Prestiging resets the player's balance to 0, so nobody can bank money at Z and buy the whole ladder back at once. Players keep their items and cell, best pickaxe included, so a second run is quicker than the first: about 90 hours at 0.5. 0.7 makes it about as long as the first.
 - Names use [MiniMessage](https://docs.papermc.io/adventure/minimessage/format/) colors, e.g. `<light_purple>Endermite`.
 - Keep the ranks in `ranks.yml` in the same order as the `ranks` track. A rank that's on the track but missing from `ranks.yml` blocks `/rankup` until it's added.
 
@@ -307,25 +309,48 @@ Set a price per item (any item, not just blocks):
 ```
 `/thebox price remove <item>` makes an item unsellable again. Prices live in `plugins/TheBox/prices.yml`; after hand edits run `/thebox price reload`.
 
-**Suggested starting prices.** The starter mine should pay about $4 a block (about $240 a minute). Set these once, then tune each mine through its block mix: changing a price changes every mine at once.
+**Suggested prices.** These go with the default rank costs (section 6): the starter mine pays about $5.60 a block, about $14,400 an hour. Set them once, then tune each mine through its block mix (section 9): changing a price changes every mine that drops the item.
 
 | Item | Price |
 |---|---|
-| `cobblestone`, `stone` | 2 |
-| `cobbled_deepslate`, `deepslate` | 3 (deepslate takes about 1.5× as long to mine) |
-| `redstone` | 6 (the ore drops 4–5) |
-| `coal` | 12 |
-| `raw_iron` / `iron_ingot` | 20 / 24 |
-| `raw_gold` / `gold_ingot` | 40 / 48 |
+| `cobblestone`, `stone` | 3 |
+| `coal` | 15 |
+| `raw_copper` / `copper_ingot` | 6 / 7.50 |
+| `raw_iron` / `iron_ingot` | 32 / 40 |
+| `lapis_lazuli` | 7 |
+| `redstone` | 12 |
+| `raw_gold` / `gold_ingot` | 80 / 100 |
 | `diamond` | 200 |
-| `emerald` | 320 |
+| `emerald` | 300 |
+| `cobbled_deepslate`, `deepslate` | 4 |
+| `iron_block` | 360 |
+| `gold_block` | 900 |
+| `diamond_block` | 1800 |
+| `emerald_block` | 2700 |
+| `obsidian` | 25 |
 
-For example, a starter mine of 85% stone, 12% coal ore and 3% iron ore averages about $3.75 a block.
+- Copper, lapis and redstone ores drop several items (2–5, 4–9 and 4–5), so one ore is worth about $21, $45 and $54.
+- Diamonds and emeralds are worth a lot, so mines hold few of them; older ores stay in later mines for variety.
+- Storage blocks are exactly 9× their ingot or gem, so crafting or breaking them up neither makes nor loses money.
+
+**Crafted items.** Cells are workshops: crafted items sell for more than their raw materials, so cells, cell upgrades and autocrafters pay off. The markup grows with the work, and stays below 2× so that selling raw stays a fair way to play:
+
+| Kind | Price | Examples |
+|---|---|---|
+| Smelted | raw materials × 1.25 | `iron_ingot` 40, `gold_ingot` 100, `copper_ingot` 7.50 |
+| Crafted from one material | raw materials × 1.5 | `iron_chestplate` 384, `stone_bricks` 4.50 |
+| Components from several materials | raw materials × 1.8 | `piston` 101, `hopper` 288, `crafter` 391 |
+
+- **Raw materials** means what was mined. An iron chestplate is 8 raw iron ($256) × 1.5. A piston is 4 cobblestone, 1 raw iron and 1 redstone ($56) × 1.8; its planks count as free.
+- **Why not 2×:** nearly everything mined can be crafted into something, so the markup applies to a crafter's whole income. At 1.8× on everything, a crafter would reach Z in about 72 hours even after buying every cell, against 100 for selling raw. With these tiers a dedicated crafter lands at roughly 85–95 hours with every cell bought.
+- **Recipes that can be undone stay exact:** storage blocks at 9× their ingot or gem, and nuggets (if you price them) at 1/9 of an ingot. A markup there would be money for nothing.
+- **Wood counts as free,** so a trip to the wood mine is what a component costs.
+- **The store must charge more than `/sell` pays** for anything it sells, or buying and selling makes free money. Now that armor can be sold, check the store's armor prices.
 
 **Leave unpriced:**
 - logs and planks, because tree farms in cells would be endless money;
 - all food, above all whatever the free food kit gives;
-- nuggets and storage blocks (iron block, raw iron block, …);
+- nuggets, raw ore blocks (raw iron block, …) and storage blocks no mine contains (coal, copper, lapis, redstone);
 - ore blocks, so Silk Touch on ores is worthless.
 
 ## 8. World protection (WorldGuard, in-game)
@@ -413,6 +438,61 @@ Mines are created from a WorldEdit selection, so this part needs a player. Repea
 
 Check everything with `/thebox mine list`; it shows each mine's level.
 
+**Suggested mines A to F.** One mine per rank, each about 1.15× richer than the one before, so that the default rank costs (section 6) take the planned time. Weights are out of 200, so 2 is 1%. Each mix assumes the pickaxe players have by then: copper, then iron, smelted and crafted in their cell from the mines' own ore (furnaces and crafting tables can only be placed in cells), then the store's Efficiency I.
+
+| Mine | Pickaxe | Mix (weights) | Pays about |
+|---|---|---|---|
+| A | copper | `stone` 164, `coal_ore` 22, `copper_ore` 14 | $14k an hour |
+| B | iron | `stone` 165, `coal_ore` 16, `copper_ore` 13, `iron_ore` 6 | $17k |
+| C | iron | `stone` 161, `coal_ore` 13, `copper_ore` 13, `iron_ore` 13 | $19k |
+| D | iron | `stone` 160, `coal_ore` 9, `copper_ore` 9, `iron_ore` 16, `lapis_ore` 6 | $22k |
+| E | iron, Efficiency I | `stone` 164, `coal_ore` 5, `copper_ore` 8, `iron_ore` 13, `lapis_ore` 10 | $25k |
+| F | iron, Efficiency I | `stone` 161, `coal_ore` 5, `copper_ore` 5, `iron_ore` 13, `lapis_ore` 11, `redstone_ore` 5 | $29k |
+
+- Check each mine with the 5-minute test (mine with that pickaxe, `/sell all`, × 12). If one pays well off, change its mix rather than the prices.
+- Players slower than the model take longer; at the pace of the first test, the ladder takes about 150 hours instead of 100.
+
+**Suggested mines G to Z, with god-tier pickaxes.** From G, players' pickaxes go past vanilla levels (sold in four store markets, section 10, or given in kits), and every rank adds one thing to them. The mixes assume players have each rank's pickaxe. Most players will skip some, which makes the ladder longer (section 10):
+
+| Rank | The pickaxe gains | Mix (weights out of 200) | Pays about |
+|---|---|---|---|
+| G | Efficiency VI (stone breaks instantly), Fortune III, Unbreaking III | `stone` 155, `obsidian` 1, `coal_ore` 3, `copper_ore` 5, `iron_ore` 14, `lapis_ore` 11, `redstone_ore` 11 | $163k an hour |
+| H | Fortune IV | `stone` 160, `obsidian` 1, `coal_ore` 2, `iron_ore` 12, `lapis_ore` 10, `redstone_ore` 10, `gold_ore` 5 | $212k |
+| I | Fortune V | `stone` 160, `obsidian` 1, `iron_ore` 12, `lapis_ore` 10, `redstone_ore` 10, `gold_ore` 7 | $260k |
+| J | Fortune VI | `stone` 159, `obsidian` 1, `iron_ore` 10, `lapis_ore` 10, `redstone_ore` 10, `gold_ore` 10 | $320k |
+| K | Unbreakable | `stone` 157, `obsidian` 1, `iron_ore` 10, `lapis_ore` 8, `redstone_ore` 10, `gold_ore` 13, `diamond_ore` 1 | $372k |
+| L | Fortune VII | `stone` 157, `obsidian` 1, `iron_ore` 10, `lapis_ore` 8, `redstone_ore` 8, `gold_ore` 13, `diamond_ore` 3 | $481k |
+| M | Fortune VIII | `stone` 157, `obsidian` 1, `iron_ore` 8, `lapis_ore` 8, `redstone_ore` 8, `gold_ore` 14, `diamond_ore` 4 | $578k |
+| N | Efficiency IX (ores and deepslate break instantly) | `deepslate` 164, `iron_ore` 7, `lapis_ore` 5, `redstone_ore` 7, `gold_ore` 12, `diamond_ore` 4, `emerald_ore` 1 | $814k |
+| O | Fortune IX | `deepslate` 167, `iron_ore` 6, `lapis_ore` 4, `redstone_ore` 6, `gold_ore` 11, `diamond_ore` 4, `emerald_ore` 2 | $934k |
+| P | Fortune X | `deepslate` 170, `iron_ore` 4, `lapis_ore` 4, `redstone_ore` 4, `gold_ore` 10, `diamond_ore` 5, `emerald_ore` 3 | $1.1M |
+| Q | Fortune XI | `deepslate` 170, `iron_ore` 4, `lapis_ore` 4, `redstone_ore` 4, `gold_ore` 8, `diamond_ore` 6, `emerald_ore` 4 | $1.4M |
+| R | Fortune XII | `deepslate` 171, `iron_ore` 4, `lapis_ore` 2, `redstone_ore` 4, `gold_ore` 8, `diamond_ore` 6, `emerald_ore` 5 | $1.5M |
+| S | Fortune XIII | `deepslate` 171, `iron_ore` 2, `lapis_ore` 2, `redstone_ore` 4, `gold_ore` 8, `diamond_ore` 7, `emerald_ore` 6 | $1.9M |
+| T | Fortune XIV | `deepslate` 173, `iron_ore` 2, `redstone_ore` 2, `gold_ore` 7, `diamond_ore` 8, `emerald_ore` 8 | $2.3M |
+| U | Fortune XV | `deepslate` 172, `redstone_ore` 2, `gold_ore` 7, `diamond_ore` 9, `emerald_ore` 10 | $2.8M |
+| V | Efficiency XII (deepslate ores and storage blocks break instantly) | `deepslate` 161, `iron_block` 1, `gold_block` 1, `deepslate_iron_ore` 3, `deepslate_redstone_ore` 3, `deepslate_gold_ore` 9, `deepslate_diamond_ore` 10, `deepslate_emerald_ore` 12 | $3.4M |
+| W | Fortune XVI | `deepslate` 164, `gold_block` 1, `diamond_block` 1, `deepslate_gold_ore` 9, `deepslate_diamond_ore` 11, `deepslate_emerald_ore` 14 | $4.0M |
+| X | Fortune XVII | `deepslate` 161, `diamond_block` 1, `emerald_block` 1, `deepslate_gold_ore` 8, `deepslate_diamond_ore` 12, `deepslate_emerald_ore` 17 | $5.0M |
+| Y | Fortune XVIII | `deepslate` 157, `diamond_block` 1, `emerald_block` 1, `deepslate_gold_ore` 7, `deepslate_diamond_ore` 13, `deepslate_emerald_ore` 21 | $6.0M |
+| Z | Fortune XIX | `deepslate` 150, `diamond_block` 1, `emerald_block` 1, `deepslate_gold_ore` 9, `deepslate_diamond_ore` 13, `deepslate_emerald_ore` 26 | $7.4M |
+
+- **Efficiency only matters where blocks start breaking instantly.** With a diamond pickaxe:
+  - VI breaks hardness 1.5 instantly (stone, blackstone, tuff, terracotta);
+  - IX breaks hardness 3 (stone ores, deepslate, end stone);
+  - XII breaks hardness 5 (deepslate ores, iron, diamond and emerald blocks).
+  - VII, VIII and X only matter for concrete, for cobblestone and bricks, and for cobbled deepslate and deepslate bricks, so the track skips them. Use them if you build themed mines from those blocks.
+- **Fortune multiplies ore drops** (III ×2.2, X ×5.6, XIX ×10), but not fillers, obsidian or storage blocks. That's why these mines lean on ores: each Fortune level makes every ore worth more, so mines get richer without more ore in them. They're 13–25% ore.
+- **Any filler works** if that rank's pickaxe breaks it instantly: hardness 1.5 or less from G, 3 from N, 5 from V. Price it near stone's $3, or deepslate's $4.
+- **Obsidian** (G–M) is there so players can build enchanting tables. It never breaks instantly: about 2 seconds a block with Efficiency VI.
+- **Making a god pick:** give the item with its enchantments and a high `repair_cost`, so anvils can't add more. For example, the G pick:
+  ```
+  /give @p diamond_pickaxe[enchantments={"minecraft:efficiency":6,"minecraft:fortune":3,"minecraft:unbreaking":3},repair_cost=1000,max_damage=8000]
+  ```
+  `max_damage` is its durability ([data components](https://minecraft.wiki/w/Data_component_format)): 8,000 instead of diamond's 1,561, so with Unbreaking III it lasts about 3.5 hours of mining instead of 40 minutes. From K, swap Unbreaking and `max_damage` for `unbreakable={}`.
+- **These mixes assume about 210 blocks a minute** once everything breaks instantly. That's the least certain number here, so run the 5-minute test once you have a god pick.
+- **High Fortune fills an inventory in a few minutes,** about 600 items a minute at Z, so players will lean on `/sell all`.
+
 Two separate locks, on purpose:
 - **Who can enter** a mine is TheBox's job (`thebox.mine.<id>`, granted by rank). WorldGuard's own `entry` flag only knows region members, not ranks.
 - **What can be broken** is WorldGuard's job (the `mine_<id>` region). Mine resets aren't affected: TheBox fills mines through WorldEdit, which WorldGuard doesn't block.
@@ -429,7 +509,14 @@ Players rent stalls in a market, build in them, and (with QuickShop-Hikari) run 
    /thebox market create main
    /thebox market setname main <gold>The Bazaar
    ```
-   You can create more markets later; with several, `/market` shows a menu to pick one.
+   You can create more markets later. A market can't be named after a `/market` subcommand (`rent`, `info`, `claim`…).
+
+   **Unlock it for a rank.** Every market is locked until a rank unlocks it, like mines (higher ranks inherit it):
+   ```
+   lp group a permission set thebox.marketplace.main true
+   ```
+
+   **Updating from an older TheBox:** markets used to be open to everyone, so run this for each market you already have, or `/market` won't show it to anyone. Test as a non-op player: ops have every permission.
 3. **Create the stalls.** For each one, select with `//wand` only the **empty space players may build in** (above the floor, inside the walls), then:
    ```
    /thebox market stall create main s1 400
@@ -452,7 +539,7 @@ Players rent stalls in a market, build in them, and (with QuickShop-Hikari) run 
 | `day-length-minutes` | 1440 | How long a rent "day" is. **For testing**, set it to e.g. 2 to watch auto-renewal, grace and eviction happen in minutes. Set it back to 1440 for real use. |
 
 **How it works for players:**
-- `/market` takes them there. Standing in a stall, `/market info` shows its rent, and `/market rent [days]` rents it (one stall per player per market).
+- `/market` takes them to a market they've unlocked, with a menu if there are several; `/market <id>` goes straight to one. Standing in a stall, `/market info` shows its rent, and `/market rent [days]` rents it (one stall per player per market).
 - Rent renews itself each day from their balance (`/market autorenew off` to stop). `/market extend <days>` pays ahead.
 - If rent can't be paid, the stall is **frozen**: nobody can build, and its shops are closed. Paying (`/market extend`) unfreezes it.
 - After the grace period, everything in the stall (chest contents, the blocks themselves, item frames, armor stands) goes to the renter's **impound**, and the stall is free again. `/market claim` opens the impound as a chest menu. Unclaimed items are sold at `prices.yml` value after `impound-expiry-days` (unpriced or customized items are worth nothing).
@@ -487,6 +574,19 @@ Breaking the chest removes the shop. Trusted friends can make shops in the stall
 - Never put an admin shop inside a registered stall: clearing a stall (unpaid rent, `stall evict`, `/market unrent`) deletes every shop in it.
 - Price every item above what `/sell` pays in `prices.yml`, or buying and selling in a loop makes endless money. Only make selling shops; a buying one is a second `/sell`.
 
+**Pickaxe store markets** (the plan; the pickaxes are in section 9). Four markets of server booths sell god pickaxes. Each opens at a rank, and players can buy anything in a market they've unlocked. Every pickaxe costs the same as its rank (section 6), and each market's prices can be tuned on their own.
+
+| Market | Opens at | Sells | Prices |
+|---|---|---|---|
+| 1 | G | The G pick (breakable, `max_damage=8000`) | $55,000 |
+| 2 | K | The K–M picks (unbreakable) | $990,000 to $1,800,000 |
+| 3 | N | The N–U picks | $2,300,000 to $14,000,000 |
+| 4 | V | The V–Z picks | $18,000,000 to $46,000,000 |
+
+- Market 1 has only the G pick. At their ranks' prices, breakable H–J picks would use up half or more of what they earn, so nobody should buy them. Give those Fortune levels in kits instead, or skip them.
+- Buying the best pickaxe a market has right away beats buying each rank's in turn. So a player who buys well ends up with about five (G, L, N, S, V) and reaches Z in about 140 hours instead of 100. W–Z are never worth their price, so they make good rare kit rewards.
+- Unlock each market for its rank, for example `lp group g permission set thebox.marketplace.picks_g true`. TheBox locks `/market`, not walking in, so build the store markets sealed off, with no way in but `/market`.
+
 **Admin tools:** `/thebox market stall evict main s1` clears a stall into its renter's impound right away. `stall setrent` changes the rent, `stall delete` removes a free stall. `/thebox market wipe` is for a new season (section 16): it clears every stall and empties every impound.
 
 ## 11. Cells (in-game)
@@ -497,25 +597,25 @@ Each player can own one cell, a room of their own. They get it with `/cell buy` 
 
 | Tier | Sizes (room floor, width × depth) | Height |
 |---|---|---|
-| 1 | 3×3 ($2,000) → 5×5 → 7×7 | 3 |
+| 1 | 3×3 → 5×5 → 7×7 | 3 |
 | 2 | 11×11 (a move) → 13×13 → 15×15 | 6 |
 | 3 | 19×19 (a move) → 21×21 → 23×23 | 8 |
 
-A player's first cell (tier 1's first size) costs $2,000 by default, so new players play a while before they get one: `/cell` tells them the price and `/cell buy` pays for it. Set its price to 0 to make it free. The other prices are placeholders, like `ranks.yml`'s: set them before players arrive. A good first-cell price is about what rank B costs. Settle the sizes before you build, because plots are built for a tier's largest room.
+A player's first cell (tier 1's first size) costs $2,000 by default, so new players play a while before they get one: `/cell` tells them the price and `/cell buy` pays for it. Set its price to 0 to make it free. Settle the sizes before you build, because plots are built for a tier's largest room.
 
-**Suggested prices**, to go with section 6's rank costs. Each size costs about what the rank that unlocks it costs (step 6), and a move to the next tier twice that, which is why size 7 costs more than size 8. Together they add about 40 hours to the ladder. Set each size's `price` under `tiers` in `cells.yml`, then run `/thebox cell reload`.
+**Default prices**, to go with section 6's rank costs. Each size costs about what the rank that unlocks it costs (step 6), so every size costs more than the one before. A move to the next tier follows the same rule: the bigger room in a new cell block is its reward. Together they add about 25 hours to the ladder. A `cells.yml` written by an older TheBox has lower placeholder prices: set each size's `price` under `tiers` in `cells.yml`, then run `/thebox cell reload`.
 
 | Size | Tier | Floor | Unlocked at | Price |
 |---|---|---|---|---|
 | 1 | 1 | 3×3 | (start) | $2,000 |
 | 2 | 1 | 5×5 | D | $19,000 |
 | 3 | 1 | 7×7 | G | $55,000 |
-| 4 | 2 | 11×11 (a move) | J | $240,000 |
-| 5 | 2 | 13×13 | M | $250,000 |
-| 6 | 2 | 15×15 | P | $470,000 |
-| 7 | 3 | 19×19 (a move) | S | $1,700,000 |
-| 8 | 3 | 21×21 | V | $1,500,000 |
-| 9 | 3 | 23×23 | Y | $2,600,000 |
+| 4 | 2 | 11×11 (a move) | J | $730,000 |
+| 5 | 2 | 13×13 | M | $1,800,000 |
+| 6 | 2 | 15×15 | P | $4,300,000 |
+| 7 | 3 | 19×19 (a move) | S | $8,500,000 |
+| 8 | 3 | 21×21 | V | $18,000,000 |
+| 9 | 3 | 23×23 | Y | $36,000,000 |
 
 1. **Build a cell block for each tier:** a mass of solid blocks (e.g. stone bricks; nothing that falls, like sand or gravel) on a floor, with a corridor along the front for players to walk in. Each cell needs a **plot** inside it: a solid box big enough for the tier's largest room plus the front wall. With the default sizes:
    - tier 1: 7 wide, 8 deep (7 plus the front wall), 3 tall
@@ -627,13 +727,13 @@ Its cooldown is `heal-cooldown` in `plugins/Essentials/config.yml` (default 60 s
 As a **non-op** player:
 1. Join, then in the console run `lp user <name> info`. The player should be in groups `default` and `a`. `/balance`, `/baltop` and `/pay` work. With an account that has never joined: you arrive at the spawn point, not on a roof, and get the starter kit.
 2. Breaking or placing blocks outside a mine is blocked (WorldGuard says so in chat).
-3. `/mines` lists the unlocked mines; `/mines quarry` teleports there. Breaking blocks in the mine works; placing them doesn't. Within 8 blocks of the mine you have Night Vision (an ∞ icon at the top right). It stays while you walk around the rim, and goes once you're farther away. PvP works in every mine except the starter mine, and nowhere else. After hitting another player, `/mines` is blocked for 15 seconds, and logging out in that time kills you.
-   - PvP levels need two non-op players a mine apart. In the lower player's mine, neither can hit the other (melee, arrows, or a splash or lingering potion of poison); the attacker sees "You can only fight players at your own level in this mine." Afterwards `/mines` still works for both: a blocked hit must not combat-tag anyone.
+3. `/mine` opens a menu of the unlocked mines (with only one, it goes straight there); `/mine quarry` teleports there. Breaking blocks in the mine works; placing them doesn't. Within 8 blocks of the mine you have Night Vision (an ∞ icon at the top right). It stays while you walk around the rim, and goes once you're farther away. PvP works in every mine except the starter mine, and nowhere else. After hitting another player, `/mine` is blocked for 15 seconds, and logging out in that time kills you.
+   - PvP levels need two non-op players a mine apart. In the lower player's mine, neither can hit the other (melee, arrows, or a splash or lingering potion of poison); the attacker sees "You can only fight players at your own level in this mine." Afterwards `/mine` still works for both: a blocked hit must not combat-tag anyone.
 4. Mine some blocks, then run `/sell all` (or `/sell hand`, `/sell worth`).
-5. `/ranks` shows the ladder with the player's rank marked and the next rank's cost. `/rankup` buys the next rank (`/rankup max` buys as many as you can afford). The whole server sees an announcement.
+5. `/rankup list` shows the ladder with the player's rank marked and the next rank's cost; `/rankup help` lists the rank commands. `/rankup` buys the next rank (`/rankup max` buys as many as you can afford). The whole server sees an announcement.
 6. Walking into a locked mine is blocked with "You haven't unlocked … yet."
-7. At the top rank, `/prestige` explains what prestiging does, and `/prestige confirm` does it: the player goes back to `a`, joins `p1`, and the server sees an announcement.
-8. `/market`, stand in a free stall, `/market rent`. Building works in your stall and nowhere else in the market. With `day-length-minutes: 2` and auto-renew off, the stall freezes after 2 minutes; after the grace period its contents show up in `/market claim`.
+7. At the top rank, `/prestige` explains what prestiging does, and `/prestige confirm` does it: the player goes back to `a`, joins `p1`, their balance goes to 0 (items and cell stay), and the server sees an announcement.
+8. A non-op player without `thebox.marketplace.main` gets "You haven't unlocked any markets yet." from `/market`, and `/market main` says "You haven't unlocked that market." With it: `/market`, stand in a free stall, `/market rent`. Building works in your stall and nowhere else in the market. With `day-length-minutes: 2` and auto-renew off, the stall freezes after 2 minutes; after the grace period its contents show up in `/market claim`.
 9. A new player is told to type `/cell` when they join; `/cell` shows the price, `/cell buy` without enough money is refused, and with enough it takes the money, gives them a cell and takes them into it. The door opens from inside, with the inside button, and from outside. An admin who creates cells doesn't get one. Building works in the room and the front space, not in the walls. With `thebox.cell.size.2`, `/cell upgrade` carves the room bigger and leaves what's in it alone. With the tier's front saved (section 11, step 4): the cell has its door, and another non-op player can't press its button. Add a block to the front and `/thebox cell evict` the cell: only the added block goes to the impound, and the door comes back. Check a cell facing a different way too: its door and buttons should face the corridor. As an admin, `create ... here` is refused when standing one block off center would make the plot touch its neighbor's, and `/thebox cell delete` on a free cell makes its plot solid again.
 
 ## 15. Special events
@@ -656,7 +756,7 @@ lp group default permission settemp thebox.mine.halloween true 14d
 lp group default permission settemp thebox.mine.halloween true <timestamp>
 ```
 - LuckPerms has no start date: run the command when the event begins.
-- While it's open, the mine is listed in `/mines`; afterwards it disappears from the list.
+- While it's open, the mine shows in `/mine`; afterwards it disappears from the menu.
 - To end it early: `lp group default permission unsettemp thebox.mine.halloween`.
 
 ### Lootbox mine: short visits

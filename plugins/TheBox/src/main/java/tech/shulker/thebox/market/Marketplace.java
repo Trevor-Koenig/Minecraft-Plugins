@@ -26,4 +26,6 @@ public class Marketplace {
     public SavedLocation getTeleport() { return teleport; }
     public void setTeleport(SavedLocation teleport) { this.teleport = teleport; }
     public Map<String, Stall> getStalls() { return stalls; }
+    /** Unlocks this market for /market. Every market is locked until a rank grants it, like mines. */
+    public String getPermission() { return "thebox.marketplace." + id; }
 }
