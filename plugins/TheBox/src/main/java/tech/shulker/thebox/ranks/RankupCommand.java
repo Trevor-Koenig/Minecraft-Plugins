@@ -10,8 +10,13 @@ import com.mojang.brigadier.tree.LiteralCommandNode;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
 import io.papermc.paper.command.brigadier.MessageComponentSerializer;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.JoinConfiguration;
+import net.kyori.adventure.text.event.HoverEvent;
+import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
@@ -23,6 +28,8 @@ import net.milkbowl.vault.economy.EconomyResponse;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import tech.shulker.thebox.sell.VaultEconomy;
+import tech.shulker.thebox.themes.Theme;
+import tech.shulker.thebox.themes.ThemeManager;
 
 /**
  * The player command: /rankup buys the next rank, /rankup max buys as many as the player can afford,
@@ -36,11 +43,15 @@ public class RankupCommand {
 
     private final RankManager ranks;
     private final RankLadder ladder;
+    private final Unlocks unlocks;
+    private final ThemeManager themes;
     private final Logger logger;
 
-    public RankupCommand(RankManager ranks, RankLadder ladder, Logger logger) {
+    public RankupCommand(RankManager ranks, RankLadder ladder, Unlocks unlocks, ThemeManager themes, Logger logger) {
         this.ranks = ranks;
         this.ladder = ladder;
+        this.unlocks = unlocks;
+        this.themes = themes;
         this.logger = logger;
     }
 
@@ -62,27 +73,29 @@ public class RankupCommand {
         Player player = ctx.getSource().getPlayerOrThrow();
         Rank rank = rankUpOnce(player);
         announce(player, rank);
+        showUnlocks(player, List.of(rank));
+        showBandTitle(player, rank, rank);
         return Command.SINGLE_SUCCESS;
     }
 
     private int rankupMax(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
         Player player = ctx.getSource().getPlayerOrThrow();
         // The first rank-up reports its error as usual (top rank, not enough money, ...).
-        Rank rank = rankUpOnce(player);
-        int count = 1;
+        List<Rank> gained = new ArrayList<>(List.of(rankUpOnce(player)));
         // After that, keep going until something stops us; that's the normal way for "max" to end.
         while (true) {
             try {
-                rank = rankUpOnce(player);
-                count++;
+                gained.add(rankUpOnce(player));
             } catch (CommandSyntaxException stop) {
                 break;
             }
         }
-        if (count > 1) {
-            player.sendRichMessage("<gray>Ranked up " + count + " times.");
+        if (gained.size() > 1) {
+            player.sendRichMessage("<gray>Ranked up " + gained.size() + " times.");
         }
-        announce(player, rank);
+        announce(player, gained.getLast());
+        showUnlocks(player, gained);
+        showBandTitle(player, gained.getFirst(), gained.getLast());
         return Command.SINGLE_SUCCESS;
     }
 
@@ -140,7 +153,8 @@ public class RankupCommand {
 
     /**
      * /rankup list: the ladder. Players see which ranks they have and what the rest cost them (at their prestige
-     * level). The console sees base costs. Admins also see each rank's id, for /thebox rank setname and setcost.
+     * level), and hovering over a rank shows what it unlocks. The console sees base costs. Admins also see each rank's
+     * id, for /thebox rank setname and setcost.
      */
     private int list(CommandContext<CommandSourceStack> ctx) {
         CommandSender sender = ctx.getSource().getSender();
@@ -179,9 +193,17 @@ public class RankupCommand {
             String cost = position == current ? "<gold>you're here</gold>"
                 : ranks.isFirst(rank) ? "starting rank"
                 : VaultEconomy.format(sender, ranks.getCost(rank, prestige));
-            sender.sendRichMessage(marker + " <name> <gray>- <cost>" + (showIds ? " <dark_gray>(" + rank.getId() + ")" : ""),
+            Component line = MiniMessage.miniMessage().deserialize(marker + " <name> <gray>- <cost>" + (showIds ? " <dark_gray>(" + rank.getId() + ")" : ""),
                 Placeholder.parsed("name", rank.getDisplayName()),
                 Placeholder.parsed("cost", cost));
+            List<Component> unlocked = unlocks.of(rank.getId());
+            if (!unlocked.isEmpty()) {
+                // Hover text is shown when the player points at the line in chat; the console just prints the line.
+                List<Component> hover = new ArrayList<>(List.of(Component.text("Unlocks:", NamedTextColor.GOLD)));
+                hover.addAll(unlocked);
+                line = line.hoverEvent(HoverEvent.showText(Component.join(JoinConfiguration.newlines(), hover)));
+            }
+            sender.sendMessage(line);
         }
 
         if (current >= 0) {
@@ -193,8 +215,14 @@ public class RankupCommand {
                     sender.sendRichMessage("<gray>Next: </gray><name> <gray>for</gray> <yellow><cost></yellow><gray>. Use <yellow>/rankup</yellow>.",
                         Placeholder.parsed("name", next.getDisplayName()),
                         Placeholder.unparsed("cost", VaultEconomy.format(sender, ranks.getCost(next, prestige))));
+                    List<Component> unlocked = unlocks.of(next.getId());
+                    if (!unlocked.isEmpty()) {
+                        sender.sendMessage(MiniMessage.miniMessage().deserialize("<gray>It unlocks:</gray> <unlocks>",
+                            Placeholder.component("unlocks", Unlocks.join(unlocked))));
+                    }
                 }
             }
+            sender.sendRichMessage("<dark_gray>Point at a rank to see what it unlocks.");
         }
         return Command.SINGLE_SUCCESS;
     }
@@ -218,6 +246,35 @@ public class RankupCommand {
             "<gold><player></gold> <gray>ranked up to</gray> <rank><gray>!",
             Placeholder.component("player", player.name()),
             Placeholder.parsed("rank", rank.getDisplayName())));
+    }
+
+    /**
+     * Shows the band title (themes.yml) when the rank-ups from first to last moved the player into another band, judged
+     * from the rank they had before first. After /rankup max across two bands, only the last band's title shows.
+     */
+    private void showBandTitle(Player player, Rank first, Rank last) {
+        Track track = ladder.getTrack();
+        int index = track == null ? -1 : track.getGroups().indexOf(first.getId());
+        Theme before = index > 0 ? themes.forRank(track.getGroups().get(index - 1)) : null;
+        Theme after = themes.forRank(last.getId());
+        if (after != null && (before == null || !before.id().equals(after.id()))) {
+            themes.showTitle(player, after);
+        }
+    }
+
+    /**
+     * "New at K: Mine K, /feed, /kit k" for each rank the player just reached, from what LuckPerms grants that rank's
+     * group. Kits can be clicked to claim them.
+     */
+    private void showUnlocks(Player player, List<Rank> gained) {
+        for (Rank rank : gained) {
+            List<Component> unlocked = unlocks.of(rank.getId());
+            if (!unlocked.isEmpty()) {
+                player.sendMessage(MiniMessage.miniMessage().deserialize("<gray>New at </gray><rank><gray>:</gray> <unlocks>",
+                    Placeholder.parsed("rank", rank.getDisplayName()),
+                    Placeholder.component("unlocks", Unlocks.join(unlocked))));
+            }
+        }
     }
 
     /** A red error message, built with MiniMessage. */

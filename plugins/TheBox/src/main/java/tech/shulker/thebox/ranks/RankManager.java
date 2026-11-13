@@ -123,13 +123,25 @@ public class RankManager {
         19_000_000, 24_000_000, 30_000_000, 37_000_000
     };
 
-    /** a to z, with DEFAULT_COSTS. */
+    /**
+     * Default name colors, a to z: one hue per PvP band, so players who can fight each other share a color (A–C gray,
+     * D–H green, I–M aqua, N–R blue, S–W light purple, X–Z red), each rank a step stronger than the one before. All
+     * read on Minecraft's dark chat background. README section 6 lists them as setname commands.
+     */
+    private static final String[] DEFAULT_COLORS = {
+        "#A4A4A4", "#C5C5C5", "#E8E8E8", "#A0EEA2", "#8BE98E", "#74E37B", "#5ADD66", "#38D64E", "#83EFF5",
+        "#69E8EF", "#48E1E9", "#13DAE2", "#07D0D8", "#AAC8FF", "#9ABDFE", "#89B2FE", "#78A7FF", "#679CFF",
+        "#EEB6FB", "#EBA5FA", "#E793FA", "#E381F9", "#DF6DF8", "#FE9B93", "#FF7E77", "#FE5C59"
+    };
+
+    /** a to z, with DEFAULT_COSTS, each named by its letter in its DEFAULT_COLORS color. */
     private void createDefaults() {
         for (char letter = 'a'; letter <= 'z'; letter++) {
             Rank rank = new Rank(String.valueOf(letter));
             rank.setCost(DEFAULT_COSTS[letter - 'a']);
+            rank.setDisplayName("<" + DEFAULT_COLORS[letter - 'a'] + ">" + Character.toUpperCase(letter));
             ranks.put(rank.getId(), rank);
         }
-        plugin.getLogger().info("Created ranks.yml with ranks a to z and the default costs.");
+        plugin.getLogger().info("Created ranks.yml with ranks a to z and the default costs and colors.");
     }
 }

@@ -55,6 +55,9 @@ public class Mine {
     /** True when the surface is turned off, so the outside shows the mix like the inside. */
     private boolean surfaceOff = false;
 
+    /** The theme set with settheme, or null to use the theme of the mine's PvP level (MineManager.themeOf). */
+    private String theme = null;
+
     /** Blocks broken inside the mine since its last reset. Kept in memory only. */
     private long blocksMined = 0;
 
@@ -198,6 +201,10 @@ public class Mine {
 
     public int getLevel() { return level; }
     public void setLevel(int level) { this.level = level; }
+
+    /** The theme id set with settheme, or null when the mine follows its level's theme. */
+    public String getTheme() { return theme; }
+    public void setTheme(String theme) { this.theme = theme; }
 
     /** The block set with setsurface, or null if none was set (see getSurfaceBlock). */
     public BlockType getSurface() { return surface; }

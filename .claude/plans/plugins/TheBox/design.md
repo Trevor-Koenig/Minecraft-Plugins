@@ -4,6 +4,67 @@ Status: **draft**. A living document, updated as decisions are made.
 
 The admin setup guide is [plugins/TheBox/README.md](../../../../plugins/TheBox/README.md). Update it whenever commands, permissions or setup steps change.
 
+## Handoff (2026-11-13)
+Start here when picking TheBox up again. The details are in the sections this points to.
+
+**Where things stand**
+- The last commit is `aa8b55d` ("Mines allow double weights and updated readme"). Everything below is **uncommitted**. `./gradlew build` passes, but none of it has been tried in-game; README section 14 has the checks.
+  - **Rank rewards** (M3 steps 11–15, section Rank rewards):
+    - Rank colors: default names and a `setname` list.
+    - Rank-up messages and `/rankup list` hovers that list each rank's unlocks, read from LuckPerms (`ranks/Unlocks`).
+    - `/effects` (`effects/`).
+    - The gold prestige announcement.
+    - Kit, command and effect setup in README section 13.
+  - **Themes, step 1** (M7, section Themes): `themes.yml` with six default sites, band titles, themed reset messages, `/thebox mine settheme` and `/thebox theme list|preview|reload` (`themes/`, README section 17).
+- The proposal page with the rank colors and the rank-by-rank rewards (private to the owner): https://claude.ai/code/artifact/5d60884a-16fb-4018-a409-730aa03b96e8
+
+**Next, in order** (M7; the owner approved the order)
+1. **Low gravity for Starfall.**
+   - A transient `Attribute.GRAVITY` modifier (0.25× gives 3.7-block jumps) plus a higher `SAFE_FALL_DISTANCE`, while a player is in a Starfall mine's area, set per theme in `themes.yml`.
+   - Remove both on leaving the area, on death and on logout. Transient modifiers aren't saved, so a crash can't leave them on.
+2. **Mobs, band currencies and band shops.** Everything is decided (section Themes). M7 step 3 has the building notes, including WorldGuard cancelling plugin spawns in mine regions. Still open: the Blackout's and the Undercity's signature items.
+3. **Themed mixes and prices.**
+   - Rework each band's mixes with its blocks, following the block rules in section Themes, so every mine still pays its target. Allow for time spent fighting.
+   - Add the new blocks' prices to README section 7.
+   - The mining model, since the old scratchpad scripts won't survive:
+     - A block takes ceil(30 × hardness ÷ speed) + 6 ticks, or breaks instantly when speed ≥ 30 × hardness.
+     - Add 3 ticks of aiming per non-instant block, or count 4 ticks per instant block.
+     - Players mine 70% of the time.
+     - Speed is the tool's speed plus efficiency² + 1.
+     - Fortune multiplies an ore's drops by 1 ÷ (f + 2) + (f + 1) ÷ 2 on average.
+
+**Later, or still open**
+- Chat colors at U (section Rank rewards): they change the text of player messages, so check how that interacts with chat signing first.
+- `prestige-multiplier` (0.5 or 0.7) and season length (section Economy and pacing).
+- Starfall's void world: pick a world generator when building it (section Themes).
+- Measure the 210 blocks a minute that instant mining is modelled at, once I's pickaxe exists in-game.
+
+**Plugins** (README section 1)
+- **Hard dependencies:** WorldEdit, WorldGuard, VaultUnlocked and LuckPerms.
+- **Needed for the README's setup:** EssentialsX and EssentialsX Spawn, and PvPManager.
+- **Optional, but the server booths need it:** QuickShop-Hikari. The starter gear store and the pickaxe store markets are QuickShop shops.
+- **Optional:** Multiverse-Core, PacketEvents, PlaceholderAPI, ajLeaderboards, DecentHolograms and PlayerParticles.
+- Nothing built so far needs another plugin, and nothing planned in M7 does either, except possibly a generator for Starfall's void world.
+  - Shop NPCs can be vanilla Mannequins.
+  - Double jump uses `PlayerInputEvent`.
+  - Mobs, gravity and currencies are plain Paper API.
+
+**Live server to-do** (owner)
+- Back up WorldGuard's `regions.yml` before deploying: TheBox now takes over existing `mine_<id>` regions (M1 follow-ups).
+- In the console, paste the H–Z `setcost` list and the rank color `setname` list (README section 6).
+- Update `cells.yml` prices for sizes 4–9 (section 11).
+- Set up the kits, command perks and effect permissions (section 13), and Z's particle (section 12).
+- Grant `thebox.marketplace.<id>` for the store markets (section 10).
+- Remove EssentialsX Chat if it's installed: TheBox formats chat itself.
+- Name mines so they read well in reset messages, for example `<#FE5C59>Asteroid Y` (section 17).
+
+**Easy to get wrong**
+- `Placeholder.parsed` carries its colors into the text after it. Use `Placeholder.component` for a name inside a sentence.
+- Use `PlayerPostRespawnEvent` to re-add effects; `PlayerRespawnEvent` fires too early.
+- LuckPerms fires events on other threads, so hop back to the main thread with `runTask` before touching the Bukkit API.
+- Efficiency only applies with the right tool.
+- Haste and Fortune interact with the tick rounding (section Rank rewards).
+
 ## 1. Goals
 - Deliver a classic prison-server experience first: mine → sell → rank up → prestige.
 - Then adjust based on what players actually want.
@@ -34,7 +95,7 @@ Only admins create and edit mines. Players just teleport to them.
 - Ranks **A–Z**, in order. Each rank's id is a letter, but like mines it can have a `displayName` (MiniMessage), e.g. A = "<gray>Shulker Larva".
 - Each rank has a `cost` (set by hand) and **unlocks** (permissions, through LuckPerms).
 - Prestige: after Z, the player can prestige. That resets them to A and adds 1 to their prestige level, which earns a chat tag and cosmetic effects (see M3).
-- *(planned 2026-11-08)* `/ranks` shows what each rank unlocks: a short text per rank in `ranks.yml`. Unlocks are LuckPerms permissions, which players can't see, so this turns each rank-up into a visible goal, and shows which ranks unlock nothing yet.
+- *(planned 2026-11-08)* `/ranks` shows what each rank unlocks: a short text per rank in `ranks.yml`. Unlocks are LuckPerms permissions, which players can't see, so this turns each rank-up into a visible goal, and shows which ranks unlock nothing yet. *Changed 2026-11-13 (owner):* worked out from LuckPerms instead of written by hand. Each rank group's own permissions (`Group#getNodes(NodeType.PERMISSION)`, not inherited, `false` skipped) become readable lines: mines, cell sizes, markets, kits, effects, commands. The rank-up message uses them ("New kit: /kit k", clickable), and so does `/rankup list`. See Rank rewards.
 
 ### Unlocks = permissions
 A rank grants permissions (or a LuckPerms group), and every feature checks those permissions:
@@ -114,9 +175,58 @@ Decided 2026-11-08: **TheBox formats chat itself** with Paper's chat API: `[P2] 
 ### Food
 Decided 2026-11-08: no TheBox code. For launch, EssentialsX covers it (setup in `README.md`, "Food"):
 - A free food kit (`/kit food`) with a cooldown, granted to rank `a`.
-- `/feed` as a mid-ladder rank unlock (`essentials.feed`).
+- `/feed` as a mid-ladder rank unlock (`essentials.feed`). *At K since 2026-11-13* (see Rank rewards).
 
 Later, food can become part of the economy (a money sink in the market, farms in cells). If mines ever need it, WorldGuard's `feed-*` region flags can feed players automatically inside a region.
+
+### Rank rewards
+Decided 2026-11-13 (owner), from a proposal page showing the colors in a mock chat and a rank-by-rank table:
+- **Colors:** one hue per PvP band, so players who can fight each other share a color. A–C gray, D–H green, I–M aqua, N–R blue, S–W light purple, X–Z red, each rank a step stronger within its band; prestige stays gold. They live in the rank names (`/thebox rank setname d <#A0EEA2>D`), so chat, announcements and `/rankup list` need no code. Each band also has a closest named color (`gray`, `green`, `aqua`, `blue`, `light_purple`, `red`) for nametags, because a scoreboard team colors the name itself only with the 16 named colors (`Team#color(NamedTextColor)`); a prefix can use any color. All read on Minecraft's dark chat (the lowest, Z, is 6.9:1 on black).
+  - A `#A4A4A4`, B `#C5C5C5`, C `#E8E8E8`, D `#A0EEA2`, E `#8BE98E`, F `#74E37B`, G `#5ADD66`, H `#38D64E`, I `#83EFF5`, J `#69E8EF`, K `#48E1E9`, L `#13DAE2`, M `#07D0D8`, N `#AAC8FF`, O `#9ABDFE`, P `#89B2FE`, Q `#78A7FF`, R `#679CFF`, S `#EEB6FB`, T `#EBA5FA`, U `#E793FA`, V `#E381F9`, W `#DF6DF8`, X `#FE9B93`, Y `#FF7E77`, Z `#FE5C59`.
+- **Fair fights:** anything that matters in a fight (armor, weapons, Speed) unlocks at the first rank of a PvP band (D, I, N, S, X), so players who can fight each other have the same kit gear and effects.
+- **Kits are EssentialsX kits** (owner, over TheBox handing them out). TheBox tells players about new ones on rank-up, worked out from LuckPerms (see Rank ladder).
+  - **Rank kits** *(owner's idea, replacing one-time pickaxe gifts at B, D and W–Z)*: `/kit <rank>` every 2 days (`delay: 172800`), with the pickaxe from two ranks below (A–C copper). It's insurance after a PvP death, where a dropped pickaxe can cost up to $37M to replace: with it a player can mine the mine two ranks back at its full planned income while saving to re-buy their own.
+  - **Kits stack up the ladder** *(owner)*: groups inherit, so a Z player can claim all 26 rank kits every 2 days, and that's fine. Limiting it would take each rank group setting the previous rank's kit `false` (a group's own permissions override inherited ones, [Permission Calculation](https://luckperms.net/wiki/Advanced-Setup)).
+  - **Hand-me-downs allowed** *(owner)*: players can give or sell kit pickaxes to lower ranks. A K player's kit gives I's pickaxe (instant stone), which skips the G–H ramp for a G player, and gifted players climb at about the 100-hour pace the costs assume instead of about 136. Binding kit pickaxes to whoever claimed them (a kit line `/thebox bindkit {player}`, which EssentialsX runs as a console command after giving the items, plus a block-break check) was considered and not built.
+  - **Band armor kits,** one-time (`delay: -1`): D iron armor, iron sword and shield; I diamond armor and sword; N Protection III diamond armor and a Sharpness III sword; S netherite armor and sword; X Protection IV netherite armor. Netherite exists only through these kits, so losing it in a fight is a real loss.
+  - The starter kit gives a copper pickaxe instead of stone, since mine A assumes copper.
+  - EssentialsX settings: `use-nbt-serialization-in-createkit: true` before `/createkit` (or custom pickaxes lose `max_damage`, `unbreakable` and `repair_cost`), `skip-used-one-time-kits-from-kit-list: true`. `drop-items-if-full: false` (the default) refuses a kit that doesn't fit instead of dropping it in a PvP mine.
+- **Effects** (TheBox code, owner): Night Vision everywhere at C, Speed I at I, Speed II at S. A permission each (`thebox.effect.night_vision`, `thebox.effect.speed.1`, `thebox.effect.speed.2`), applied as infinite, particle-free effects, with an `/effects` menu to switch each on or off; reapplied after joining, dying and milk. Mine Night Vision must leave the perk alone (today it removes any infinite Night Vision when a player leaves a mine's area).
+- **Commands** (EssentialsX permissions on rank groups): B `/hat`, E `/workbench`, F `/enderchest`, H `/nick`, K `/feed`, L `/disposal`, O `/ptime` and `/pweather`, Q colored nicknames (`essentials.nick.color`), T hex nicknames (`essentials.nick.rgb`). U: colors and bold in chat messages (TheBox code: MiniMessage limited to color and decoration tags). Z: a first PlayerParticles effect.
+- **Left out on purpose:**
+  - Haste: break times round up to whole ticks, so before I it raises income (Haste I +7–8% at A–C; Haste II +9–17% at A–F, and +106% at H, where it makes stone instant a rank early, and with H's pickaxe at I it replaces buying I's). From I it adds about 1%, from N nothing.
+  - Jump Boost: level I jumps 1.83 blocks, which clears fences and walls (1.5 tall).
+  - Saturation (makes food pointless), Strength, Resistance, Regeneration, Fire Resistance (they change fights more than gear; Fire Resistance cancels Fire Aspect).
+  - `/repair` (pickaxe wear is the store's money sink), `/fly`, `/top`, `/back` (over walls, back into PvP mines), money in kits and sell boosts (costs are set from what mines pay).
+
+### Themes
+Decided 2026-11-13 (owner). Each PvP band is a themed site. The first proposal (quarry, lush caves, ocean ruins, deep dark, geodes) was "too close to the default Minecraft environments", so each band is now a place the prison ships players to, each stranger than the last, and a band change reads as a transfer. Colors follow the rank colors.
+- **A–C, The Yard** (gray): the prison's rock yard, with guard towers and a rock crusher. No PvP, no mobs.
+- **D–H, The Sludgeworks** (green): a leaking chemical plant, with rusted copper pipes, hazard stripes, murky vats (a swamp biome tints water) and slime-block catwalks. Stone with lime and yellow terracotta, which breaks as fast as stone with these pickaxes. Mobs: Sludge (slimes), Plant Workers (zombies in yellow "hazmat" leather), Chemists (witches).
+- **I–M, The Cryo Vault** (aqua): a prison where inmates were frozen. Calcite, diorite, light blue and cyan terracotta; not concrete, whose hardness of 1.8 isn't instant with Efficiency VI. Mobs: Frozen Guards (strays), Thawed Inmates (zombies in orange).
+- **N–R, The Blackout** (blue, the owner's dark-cave idea): a deep colony that lost power, with blue soul-lantern light. Deepslate (instant from N), tuff, polished blackstone, and 1–2% infested deepslate as silverfish nests. Ores stay stone-type, since deepslate ores (hardness 4.5) aren't instant until V. Mobs: Lost Miners (zombies with hard hats), Crawlers (cave spiders).
+- **S–W, The Neon Undercity** (purple): a cyberpunk market under the prison, and a home for the pinned black market. Purple and magenta concrete and glazed terracotta, amethyst, crying obsidian. Mobs: Enforcers (vindicators), Drones (vexes).
+- **X–Z, Starfall** (red, a playtester's idea): asteroids in a void world at permanent night. Each mine is a box inside a hand-built asteroid (owner); void deaths stay as a risk (owner). Blackstone, basalt, end stone, nether quartz ore, raw iron and gold blocks as meteorites (priced at exactly 9× the raw ore, like storage blocks), crying obsidian. Mobs: Star Turrets (shulkers, whose levitation pushes players toward the void), Void Mites (endermites), Sky Rays (phantoms).
+- **Rules for themed blocks:**
+  - Pickaxe blocks only, because Efficiency only applies with the right tool (glowstone, sea lanterns, glass and sculk are decoration).
+  - They must drop something without Silk Touch: packed and blue ice, glass and budding amethyst drop nothing.
+  - Hardness within the band's instant threshold: 1.5 from I, 3 from N, 5 from V.
+  - No falling, attached or harmful blocks.
+  - Fortune only multiplies ores, so real ores (or nether quartz ore) stay most of a mine's income.
+  - New blocks are priced so they can't be farmed.
+- **Low gravity** (Starfall) uses the player `gravity` attribute (since 1.20.5) as a transient modifier, not Jump Boost and Slow Falling, which drift down like a feather. A quarter of normal gravity gives 3.7-block jumps and 1.9 s in the air; the area also raises the safe fall distance, or landings would hurt. Knockback flies farther, which raises the void risk.
+- **Mobs** (owner, so a small server feels alive):
+  - TheBox spawns themed mobs in mine areas near players, capped, and removes them at resets; vanilla spawning stays off.
+  - WorldGuard's `mobs.block-plugin-spawning` (default true) cancels plugin spawns in `mob-spawning deny` regions, which TheBox sets on mines, so TheBox has to let its own mobs (and nest silverfish) through itself.
+  - No creepers or endermen, which would damage builds. Deaths drop items as in PvP.
+- **Mob drops are band currencies** (owner): themed items that pay for each band's shop of special items. Decided 2026-11-13:
+  - **One currency per mob band:** Sludge Vials, Frost Cores, Fuses (the Blackout's colony needs power), Credchips, Stardust. The Yard has no mobs, so no currency.
+  - **Tagged items** (persistent data), so a renamed item doesn't count; `/sell` already refuses items with custom data. TheBox stops them being crafted or placed. Trading between players is allowed (it only moves money around).
+  - **Shops: both** a `/shop` command (a menu of the bands the player has reached, each priced in its own currency) and an NPC in each band's area. NPCs can be vanilla Mannequins (player-shaped entities with a skin, new in 1.21.9, `org.bukkit.entity.Mannequin` in Paper 26.3), so no Citizens. Admins stock shops in-game: hold an item and run a command, like `/createkit`. An entry can grant a permission instead of an item.
+  - **Stock:** cell decor players can't get otherwise, cosmetic hats and particle unlocks, golden apples and XP bottles, and a signature item per band. Rules: nothing that turns back into money, and nothing stronger than that band's PvP kit.
+  - **Signature items so far:** Feather Falling boots (Sludgeworks catwalks), Frost Walker boots (Cryo Vault), double-jump boots (Starfall, instead of flight over a void PvP zone). Double jump can use `PlayerInputEvent` (Paper 26.3: `getInput().isJump()`): a jump press in mid-air while wearing the boots gives one extra jump until the player lands, with no `setAllowFlight` trick. Blackout's and the Undercity's are still open.
+- **Starfall's void world:** the README doesn't cover making one yet. Multiverse's docs point to custom generator plugins; pick one when building it.
+- **Customizable** (owner): the defaults live in `themes.yml`; built-in themes fill in settings missing from older files. Mines take their theme from their PvP level, and `/thebox mine settheme` overrides it.
 
 ### Starter gear store
 Planned 2026-11-08 (from the first player test): a store at spawn where players buy a default set of gear at fixed prices. **No TheBox code:**
@@ -210,7 +320,7 @@ Decided 2026-11-09, for a small server (3–10 players):
       - The kept pick shortens prestige 1 from 150 to 90 hours at `prestige-multiplier` 0.5 (B–G take 20 minutes); 0.7 gives about 100. The kept balance matters more: a player can bank prestige 1's $320M at mine Z ($7.4M an hour, about 43 hours), then prestige and buy every rank at once, which beats climbing.
     - **Decided (owner), third round:** four store markets of server booths, opening at G, K, N and V *(G, I, N and V since 2026-11-13)* (which also gates the first god pick), with each pick at its rank's full cost; four markets leave room to tune prices per market. Prestige resets the balance (see M3 step 10).
     - **Modeled with full-cost picks:** H–J breakable picks don't pay for themselves: they use up 48–64% of what they earn with `max_damage` 8,000 and 24–32% at 16,000. They only become worth buying at about 32,000, when they last about 14 hours, longer than players use them before K. The G pick works: at $55k with `max_damage` about 8,000 it lasts about 3.5 hours at mine G and costs about 9% of what it earns (the store's 8% rule). A player who buys well buys about five picks (G at G, L at K, N and S at N, V at V) and reaches Z in about 140 hours. W–Z are never worth their price, which suits rare kits.
-    - **Still open:** ~~what market 1 sells (just the G pick, or H–J too, with more durability)~~ (settled in the fourth round); which tiers kits give; prestige-kit picks only matter if they beat the Z pick (Fortune XVIII… since the fourth round). The 210 blocks a minute needs measuring.
+    - **Still open:** ~~what market 1 sells (just the G pick, or H–J too, with more durability)~~ (settled in the fourth round); ~~which tiers kits give~~ (2026-11-13: rank kits give the pickaxe from two ranks below, see Rank rewards); prestige-kit picks only matter if they beat the Z pick (Fortune XVIII… since the fourth round). The 210 blocks a minute needs measuring.
     - **Decided (owner), fourth round, 2026-11-13: stronger early pickaxes and a gradual ramp** (replaces the pickaxe track, costs and market grouping above; tables in `README.md` sections 6, 9, 10 and 11):
       - **Gear the mines assume:** A copper; B–C iron with Efficiency II and Unbreaking II; D–F diamond with Efficiency III and Unbreaking III. The owner found the old assumptions (iron at B–D, iron Efficiency I at E–F) too low.
       - **Rank costs B–G kept** (owner, over raising them): A–F's mixes were refit to the faster pickaxes so each still pays 14,400 × 1.15^k an hour. They're leaner: 9–12% ore at B–F against A's 18%, and D's blocks are worth a little less than C's ($5.3 against $5.4).
@@ -407,6 +517,13 @@ Steps 2, 5 and 6, implementation notes:
 - [x] 8. Chat tags: `[P3] [C] Name: message` in chat *(built 2026-11-13, untested)*. `ranks/ChatTags` listens to `AsyncChatEvent` and sets a `ChatRenderer.viewerUnaware` renderer (rendered once per message, not per viewer). The prestige tag only shows from P1; the rank part is the rank's display name; the name is the player's display name, so EssentialsX nicknames show. The event runs off the main thread: it reads LuckPerms (thread-safe) and `ranks.yml`'s names, never the Bukkit API. Cancelled messages (mutes) are skipped.
 - [ ] 9. Prestige cosmetics: install PlayerParticles (if it supports 26.3), and decide which styles each prestige level unlocks
 - [x] 10. Prestige resets the balance (decided 2026-11-12; *built 2026-11-12, untested*): `/prestige confirm` withdraws the whole balance, then promotes, and refunds if the promotion fails, like `/rankup`. `/prestige` says so first. Inventories and cells stay. Known gap: `/pay` lets a friend hold money across a prestige.
+- Rank rewards (decided 2026-11-13, see Rank rewards):
+  - [x] 11. Rank colors *(built 2026-11-13)*: a `setname` paste list in `README.md` section 6, and a new `ranks.yml` starts with them (`RankManager.DEFAULT_COLORS`).
+  - [x] 12. Unlocks from LuckPerms *(built 2026-11-13, untested)*. `ranks/Unlocks` reads the rank group's own permission nodes (`Group#getNodes(NodeType.PERMISSION)`, value `true`, contexts satisfied by LuckPerms' static context) and names TheBox's permissions (mines and markets by display name, cell sizes by floor), EssentialsX kits, commands and nickname colors, and PlayerParticles; anything else is skipped. After `/rankup` (and for each rank `/rankup max` passes): "New at K: Mine K, /feed, /kit k", kits clickable (`run_command` works for commands that don't send chat). `/rankup list` shows each rank's unlocks on hover and the next rank's under the ladder.
+  - [x] 13. `/effects` *(built 2026-11-13, untested)*. `effects/EffectPerks` holds the list (Night Vision, Speed I–II; adding one is a line). Permissions are declared in `plugin.yml` with `default: false`, so ops don't get them automatically. Switches live in the player's persistent data container (`thebox:effect_off.<key>`), which is saved with the player data, so a season resets them. Effects are infinite, ambient, particle-free, with an icon; only infinite ones are removed, so potions still work. They're refreshed on join, after respawn (`PlayerPostRespawnEvent`; `PlayerRespawnEvent` is too early), a tick after milk, a totem or a potion running out (`EntityPotionEffectEvent`), and on LuckPerms' `UserDataRecalculateEvent` (rank-ups, prestige, admin changes), scheduled onto the main thread. Mine Night Vision and the perk leave each other's alone (`MineManager.setNightVisionPerk`, and `EffectPerks`' "given elsewhere" check). `effects/EffectsCommand`: a chest menu with the brewing ingredients as icons (golden carrot, sugar), a shimmer on what's on, and `/effects <effect>` to switch without it.
+  - [x] 14. Kits in `README.md` section 13 *(written 2026-11-13)*: rank kits (2 days, `kits.yml` for a–h, `/createkit` for i–z, which need item components), PvP kits `pvp1`–`pvp5`, the copper starter kit, the EssentialsX settings, the command and effect permissions, and the full pickaxe table in section 9.
+  - [x] 15. The prestige announcement in gold *(built 2026-11-13)*.
+  - ~~16. Binding kit pickaxes to whoever claimed them~~: not built (owner: gifting is fine).
 - Later: a `/rank setup` command that creates all 26 groups and the track, if creating them by hand gets tedious.
 
 **Change of plan (2026-11-08):** the owner wants markets, cells and PvP in place before testing with real users, so the first release moves to after M6. (Gangs were also on that list, then paused.)
@@ -502,6 +619,20 @@ So admins can limit TheBox's player commands per world or per server (see Comman
 - [ ] 2. Check it in each command's Brigadier `.requires(...)`, like `thebox.admin` on `/thebox`
 - [ ] 3. `README.md`: limiting a command to a world or server with LuckPerms contexts
 - [ ] 4. Test with a `world=` context: does the client's command list update after a world change? If not, look at `Player#updateCommands()`.
+
+### M7: Themes
+Each PvP band as a themed site (see Themes). Build order decided by the owner, 2026-11-13.
+- [x] 1. `themes.yml`, band titles and themed reset messages *(built 2026-11-13, untested)*.
+  - `themes/ThemeManager` writes the six defaults on first start. When loading, a built-in theme fills in any setting the file leaves out, so later steps can add settings to existing files.
+  - Titles use Adventure's `Title` with the theme's sound. They show when `/rankup` (or the last band `/rankup max` reaches) enters a band from outside it, a few seconds after a new player's first join (`RankLadder.ensureOnLadder` now reports when it added someone), and after `/prestige confirm`.
+  - Reset messages replace "Mine … has been reset". The mine name goes in as a component placeholder, so its colors stay inside it.
+  - A mine's theme comes from `MineManager.themeOf`: the one set with `/thebox mine settheme`, otherwise the one for its level. `/thebox theme list|preview|reload`. README section 17.
+- [ ] 2. Low gravity for Starfall: a transient `gravity` modifier (plus a higher safe fall distance) while in the theme's mine areas, set per theme in `themes.yml`.
+- [ ] 3. Mobs, their band currencies and band shops (decided, see Themes). Notes for building:
+  - Spawn TheBox's mobs with a tag set in the spawn consumer, and un-cancel tagged spawns (and the Blackout's nest silverfish, reason `SILVERFISH_BLOCK`) at `HIGHEST` priority, after WorldGuard's `HIGH` listener has cancelled them in `mob-spawning deny` mine regions.
+  - Remove TheBox's mobs at each reset, when no player is left in the area, and at startup; `setPersistent(false)`, no item pickup, vanilla drops cleared in favour of the band currency.
+  - Mob stats (names, equipment, health, `SCALE` for giants or minis), drop amounts, caps and the shop stock go in each theme in `themes.yml`, with defaults for the six built-ins.
+- [ ] 4. Themed mixes and prices: rework each band's mixes with its blocks so every mine still pays its target, allow for time spent fighting, and add the new blocks to README section 7.
 
 ### Gangs *(paused 2026-11-08)*
 Gang bank, alliances, friendly-fire rules, gang chat. See Gang above.

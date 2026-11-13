@@ -25,6 +25,9 @@ import org.bukkit.Location;
 import org.bukkit.block.BlockType;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
+import tech.shulker.thebox.themes.Theme;
+import tech.shulker.thebox.themes.ThemeManager;
+import tech.shulker.thebox.utils.Errors;
 import tech.shulker.thebox.utils.Selections;
 
 /** The admin command: /thebox mine create|delete|list|reset|addblock|removeblock|setresettime|settp|reload. */
@@ -57,9 +60,11 @@ public class MineAdminCommand {
     private static final int DEFAULT_RESET_SECONDS = 60 * 60;
 
     private final MineManager mines;
+    private final ThemeManager themes;
 
-    public MineAdminCommand(MineManager mines) {
+    public MineAdminCommand(MineManager mines, ThemeManager themes) {
         this.mines = mines;
+        this.themes = themes;
     }
 
     public LiteralCommandNode<CommandSourceStack> createNode() {
@@ -109,6 +114,19 @@ public class MineAdminCommand {
                     .then(Commands.literal("none").executes(ctx -> setSurface(ctx, null, true)))
                     .then(Commands.argument("block", ArgumentTypes.resource(RegistryKey.BLOCK))
                         .executes(ctx -> setSurface(ctx, ctx.getArgument("block", BlockType.class), false)))))
+            .then(Commands.literal("settheme")
+                .then(mineArgument()
+                    .then(Commands.literal("auto").executes(ctx -> setTheme(ctx, null)))
+                    .then(Commands.argument("theme", StringArgumentType.word())
+                        .suggests((ctx, builder) -> {
+                            for (Theme theme : themes.getAll()) {
+                                if (theme.id().startsWith(builder.getRemainingLowerCase())) {
+                                    builder.suggest(theme.id());
+                                }
+                            }
+                            return builder.buildFuture();
+                        })
+                        .executes(ctx -> setTheme(ctx, StringArgumentType.getString(ctx, "theme"))))))
             .then(Commands.literal("settp")
                 .then(mineArgument().executes(this::setTeleport)))
             .then(Commands.literal("reload")
@@ -155,6 +173,7 @@ public class MineAdminCommand {
             <yellow>/thebox mine setresetpercent \\<mine> \\<percent></yellow> <gray>- reset (after a 10-second countdown) once this % is mined (0 = off)</gray>
             <yellow>/thebox mine setlevel \\<mine> \\<level></yellow> <gray>- PvP level: in and around a mine, players only fight at their own level (0 = no PvP)</gray>
             <yellow>/thebox mine setsurface \\<mine> \\<block>|auto|none</yellow> <gray>- the block on the faces players can see at each reset, so no ores show; auto (the default) is the mix's most common block</gray>
+            <yellow>/thebox mine settheme \\<mine> \\<theme>|auto</yellow> <gray>- its theme (reset messages); auto (the default) is the theme of its PvP level</gray>
             <yellow>/thebox mine settp \\<mine></yellow> <gray>- set the teleport point to where you stand</gray>
             <yellow>/thebox mine rename \\<mine> \\<id></yellow> <gray>- change a mine's id, and so its permission</gray>
             <yellow>/thebox mine delete \\<mine></yellow> <gray>- delete a mine (blocks stay)</gray>
@@ -259,7 +278,37 @@ public class MineAdminCommand {
                 + (mine.getResetPercent() > 0
                     ? ", or at " + mine.getResetPercent() + "% mined (now " + mine.getPercentMined() + "%)"
                     : "")
-                + ", level: " + (mine.getLevel() > 0 ? String.valueOf(mine.getLevel()) : "not set (no PvP)"));
+                + ", level: " + (mine.getLevel() > 0 ? String.valueOf(mine.getLevel()) : "not set (no PvP)")
+                + ", theme: " + describeTheme(mine));
+        }
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private String describeTheme(Mine mine) {
+        Theme theme = mines.themeOf(mine);
+        if (theme == null) {
+            return "none";
+        }
+        return theme.id() + (mine.getTheme() == null || !mine.getTheme().equals(theme.id()) ? " (from its level)" : "");
+    }
+
+    /** A theme id, or null to follow the theme of the mine's level again. */
+    private int setTheme(CommandContext<CommandSourceStack> ctx, String themeId) throws CommandSyntaxException {
+        Mine mine = getMine(ctx);
+        if (themeId != null && themes.get(themeId) == null) {
+            throw Errors.fail("There's no theme called '<id>'. /thebox theme list shows them.", Placeholder.unparsed("id", themeId));
+        }
+        mine.setTheme(themeId);
+        mines.save();
+        Theme theme = mines.themeOf(mine);
+        CommandSender sender = ctx.getSource().getSender();
+        if (theme == null) {
+            sender.sendRichMessage("<green>Mine <white>" + mine.getId() + "</white> follows its level's theme, but no theme has level "
+                + mine.getLevel() + ", so it has none.");
+        } else {
+            sender.sendRichMessage("<green>Mine <white>" + mine.getId() + "</white> now uses </green><name><green>"
+                + (themeId == null ? ", the theme of its level." : "."),
+                Placeholder.parsed("name", theme.name()));
         }
         return Command.SINGLE_SUCCESS;
     }

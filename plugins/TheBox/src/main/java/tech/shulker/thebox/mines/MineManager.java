@@ -25,6 +25,8 @@ import java.util.Map;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Predicate;
+import net.kyori.adventure.text.Component;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
@@ -51,6 +53,8 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import tech.shulker.thebox.regions.Box;
 import tech.shulker.thebox.regions.Regions;
+import tech.shulker.thebox.themes.Theme;
+import tech.shulker.thebox.themes.ThemeManager;
 import tech.shulker.thebox.utils.SavedLocation;
 
 /** Owns all mines: storage in mines.yml, resetting, and the automatic-reset timer. */
@@ -71,8 +75,11 @@ public class MineManager implements Listener {
     /** A percentage reset waits this long, so players get the 10-second warning and the countdown. */
     private static final int PERCENT_RESET_COUNTDOWN_SECONDS = 10;
 
-    public MineManager(JavaPlugin plugin) {
+    private final ThemeManager themes;
+
+    public MineManager(JavaPlugin plugin, ThemeManager themes) {
         this.plugin = plugin;
+        this.themes = themes;
         this.file = new File(plugin.getDataFolder(), "mines.yml");
     }
 
@@ -89,6 +96,15 @@ public class MineManager implements Listener {
 
     public Mine get(String id) {
         return mines.get(id);
+    }
+
+    /**
+     * The mine's theme: the one set with settheme, otherwise the theme for its PvP level. Null if neither exists, for
+     * example after the set theme was removed from themes.yml and no theme has the mine's level.
+     */
+    public Theme themeOf(Mine mine) {
+        Theme set = mine.getTheme() == null ? null : themes.get(mine.getTheme());
+        return set != null ? set : themes.forLevel(mine.getLevel());
     }
 
     /** The mine containing this location, or null if it's in none. */
@@ -288,10 +304,16 @@ public class MineManager implements Listener {
         mine.clearBlocksMined();
         mine.scheduleNextReset();
 
-        // 4. Tell players who were in or around the mine. Placeholder.parsed keeps the display name's own tags contained.
+        // 4. Tell players who were in or around the mine: one of its theme's reset messages if it has any.
+        Theme theme = themeOf(mine);
+        Component message = theme == null ? null : themes.resetMessage(theme, MiniMessage.miniMessage().deserialize(mine.getDisplayName()));
         for (Player player : toNotify) {
-            player.sendRichMessage("<gray>Mine <white><name></white> has been reset.",
-                Placeholder.parsed("name", mine.getDisplayName()));
+            if (message != null) {
+                player.sendMessage(message);
+            } else {
+                player.sendRichMessage("<gray>Mine <white><name></white> has been reset.",
+                    Placeholder.parsed("name", mine.getDisplayName()));
+            }
         }
     }
 
@@ -409,18 +431,31 @@ public class MineManager implements Listener {
     private static final PotionEffect MINE_NIGHT_VISION =
         new PotionEffect(PotionEffectType.NIGHT_VISION, PotionEffect.INFINITE_DURATION, 0, true, false, true);
 
+    /** True for players who have Night Vision from their rank (EffectPerks), which leaving a mine mustn't take away. */
+    private Predicate<Player> nightVisionPerk = player -> false;
+
+    public void setNightVisionPerk(Predicate<Player> nightVisionPerk) {
+        this.nightVisionPerk = nightVisionPerk;
+    }
+
+    /** True if the player is in a mine's area (the mine plus Mine.AREA_MARGIN blocks), where mines give Night Vision. */
+    public boolean isInMineArea(Player player) {
+        return isNearAnyMine(player.getLocation(), Mine.AREA_MARGIN);
+    }
+
     /**
      * Mines get dark below the surface, so players in a mine's area have Night Vision. The edge is Mine.AREA_MARGIN
      * blocks out, not the mine box itself: there, walking along the rim or hopping in and out of a hole would flash it
      * on and off. Only TheBox's own is taken away: a Night Vision potion keeps running, and TheBox's takes over when
-     * it ends. Checked on every block-to-block move, so it also comes back after milk or a death.
+     * it ends. Players with Night Vision from their rank keep it. Checked on every block-to-block move, so it also
+     * comes back after milk or a death.
      */
     private void updateNightVision(Player player, Location location) {
         PotionEffect current = player.getPotionEffect(PotionEffectType.NIGHT_VISION);
         boolean near = isNearAnyMine(location, Mine.AREA_MARGIN);
         if (near && current == null) {
             player.addPotionEffect(MINE_NIGHT_VISION);
-        } else if (!near && current != null && current.isInfinite()) {
+        } else if (!near && current != null && current.isInfinite() && !nightVisionPerk.test(player)) {
             player.removePotionEffect(PotionEffectType.NIGHT_VISION);
         }
     }
@@ -582,6 +617,7 @@ public class MineManager implements Listener {
             mine.setResetIntervalSeconds(m.getInt("reset-interval-seconds", 0));
             mine.setResetPercent(Math.max(0, Math.min(100, m.getInt("reset-percent", 0))));
             mine.setLevel(Math.max(0, m.getInt("level", 0)));
+            mine.setTheme(m.getString("theme")); // missing: the theme of its level
             mine.setDisplayName(m.getString("display-name"));
             // Missing means the mix's most common block; "none" turns it off.
             String surface = m.getString("surface");
@@ -635,6 +671,9 @@ public class MineManager implements Listener {
             yaml.set(path + "reset-interval-seconds", mine.getResetIntervalSeconds());
             yaml.set(path + "reset-percent", mine.getResetPercent());
             yaml.set(path + "level", mine.getLevel());
+            if (mine.getTheme() != null) {
+                yaml.set(path + "theme", mine.getTheme());
+            }
             if (mine.isSurfaceOff()) {
                 yaml.set(path + "surface", "none");
             } else if (mine.getSurface() != null) {

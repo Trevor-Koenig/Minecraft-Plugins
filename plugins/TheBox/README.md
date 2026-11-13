@@ -304,6 +304,38 @@ thebox rank setcost z 37000000
 - **Chat shows each player's prestige and rank,** e.g. `[P2] [C] Name: message`, with no `[P…]` before the first prestige. The rank part is the rank's name from here, colors included, so keep names short. TheBox formats chat itself, so don't add another chat formatter such as EssentialsX Chat: whichever formats last wins.
 - Keep the ranks in `ranks.yml` in the same order as the `ranks` track. A rank that's on the track but missing from `ranks.yml` blocks `/rankup` until it's added.
 
+**Rank colors.** Each PvP band (section 9) has its own color, so players who can fight each other share one: A–C gray (no PvP), D–H green, I–M aqua, N–R blue, S–W light purple, X–Z red. Inside a band each rank is a step stronger than the one before, and prestige tags stay gold. A new `ranks.yml` starts with these names. To give an older one the same colors, paste into the console; it replaces each rank's name, so skip the ranks you've named yourself:
+```
+thebox rank setname a <#A4A4A4>A
+thebox rank setname b <#C5C5C5>B
+thebox rank setname c <#E8E8E8>C
+thebox rank setname d <#A0EEA2>D
+thebox rank setname e <#8BE98E>E
+thebox rank setname f <#74E37B>F
+thebox rank setname g <#5ADD66>G
+thebox rank setname h <#38D64E>H
+thebox rank setname i <#83EFF5>I
+thebox rank setname j <#69E8EF>J
+thebox rank setname k <#48E1E9>K
+thebox rank setname l <#13DAE2>L
+thebox rank setname m <#07D0D8>M
+thebox rank setname n <#AAC8FF>N
+thebox rank setname o <#9ABDFE>O
+thebox rank setname p <#89B2FE>P
+thebox rank setname q <#78A7FF>Q
+thebox rank setname r <#679CFF>R
+thebox rank setname s <#EEB6FB>S
+thebox rank setname t <#EBA5FA>T
+thebox rank setname u <#E793FA>U
+thebox rank setname v <#E381F9>V
+thebox rank setname w <#DF6DF8>W
+thebox rank setname x <#FE9B93>X
+thebox rank setname y <#FF7E77>Y
+thebox rank setname z <#FE5C59>Z
+```
+- They're picked to read clearly on Minecraft's dark chat background.
+- A tab list or nametag plugin can only color the player's name itself in one of the 16 named colors (a scoreboard team's color). If one shows ranks later, color names by each band's closest named color (`gray`, `green`, `aqua`, `blue`, `light_purple`, `red`); the rank tag in front can keep the exact shade.
+
 ## 7. Sell prices
 
 Set a price per item (any item, not just blocks):
@@ -449,6 +481,7 @@ Players who die in a mine drop their items as usual.
 - **Resets:** `/thebox mine setresettime quarry 1800` (seconds), and `/thebox mine setresetpercent quarry 80` to also reset once 80% has been mined (a 10-second countdown). 0 turns either off.
 - **The surface block:** `/thebox mine setsurface quarry stone` picks it yourself, `auto` goes back to the most common block, and `none` turns the surface off, for example for an event mine that should show its ores.
 - **Taking a block out of the mix:** `/thebox mine removeblock quarry <block>`.
+- **Its theme** (section 17): a mine uses the theme of its PvP level. `/thebox mine settheme quarry blackout` picks another one, and `auto` goes back to its level's.
 
 **Suggested mines A to F.** One mine per rank, each about 1.15× richer than the one before, so that the default rank costs (section 6) take the planned time. Mixes are percentages. Each one assumes the pickaxe players have by then: copper at A, iron with Efficiency II and Unbreaking II at B and C, and diamond with Efficiency III and Unbreaking III from D. A faster pickaxe needs less ore to earn the same, which is why B–F hold less ore than A, and D's blocks are worth a little less than C's.
 
@@ -501,7 +534,21 @@ Players who die in a mine drop their items as usual.
   ```
   /give @p diamond_pickaxe[enchantments={"minecraft:efficiency":4,"minecraft:fortune":1,"minecraft:unbreaking":3},repair_cost=1000,max_damage=12000]
   ```
-  `max_damage` is its durability ([data components](https://minecraft.wiki/w/Data_component_format)); a diamond pickaxe's own is 1,561. G–J's pickaxes wear out, so each gets enough to last 11–22 hours at its own mine, which at its store price comes to about 9% of what it earns there: G 12,000, H 20,000, I 25,000, J 50,000. From K, swap Unbreaking and `max_damage` for `unbreakable={}`.
+  `max_damage` is its durability ([data components](https://minecraft.wiki/w/Data_component_format)); a diamond pickaxe's own is 1,561. G–J's pickaxes wear out, so each gets enough to last 11–22 hours at its own mine, which at its store price comes to about 9% of what it earns there: G 12,000, H 20,000, I 25,000, J 50,000. From K, swap Unbreaking and `max_damage` for `unbreakable={}`, for example S's:
+  ```
+  /give @p diamond_pickaxe[enchantments={"minecraft:efficiency":9,"minecraft:fortune":11},repair_cost=1000,unbreakable={}]
+  ```
+  Each rank's levels, counting what earlier ranks added:
+
+  | Pickaxe | Efficiency | Fortune | Wear |
+  |---|---|---|---|
+  | G | 4 | 1 | Unbreaking 3, `max_damage=12000` |
+  | H | 5 | 2 | Unbreaking 3, `max_damage=20000` |
+  | I | 6 | 3 | Unbreaking 3, `max_damage=25000` |
+  | J | 6 | 4 | Unbreaking 3, `max_damage=50000` |
+  | K, L, M | 6 | 4, 5, 6 | `unbreakable={}` |
+  | N, O, P, Q, R, S, T, U | 9 | 6, 7, 8, 9, 10, 11, 12, 13 | `unbreakable={}` |
+  | V, W, X, Y, Z | 12 | 13, 14, 15, 16, 17 | `unbreakable={}` |
 - **These mixes assume about 210 blocks a minute** once everything breaks instantly. That's the least certain number here, so run the 5-minute test once you have I's pickaxe.
 - **High Fortune fills an inventory in a few minutes,** about 550 items a minute at Z, so players will lean on `/sell all`.
 
@@ -606,7 +653,7 @@ To set one up:
 3. For each pickaxe, `/give` yourself one (section 9, "Making the pickaxes") and make a selling shop with it at its rank's cost, then look at the shop and run `/quickshop unlimited` (as for server booths, above).
 
 - The second market opens at I, not K: I's pickaxe breaks stone instantly, which nearly triples income, so selling it at G would skip the ramp.
-- Buying the best pickaxe a market has right away beats buying each rank's in turn. So a player who buys well gets H's at G, I's and M's at I, then N's, T's and V's, and reaches Z in about 136 hours instead of 100. W–Z are rarely worth their price, so they make good rare kit rewards.
+- Buying the best pickaxe a market has right away beats buying each rank's in turn. So a player who buys well gets H's at G, I's and M's at I, then N's, T's and V's, and reaches Z in about 136 hours instead of 100. W–Z are rarely worth their price. Rank kits also hand out pickaxes, each two ranks behind the player's rank (section 13).
 - G's and H's pickaxes stay within vanilla enchanting (Efficiency V and Fortune III are its highest), so players with an enchanting table can try for their own. I's is the first that only the store sells.
 
 **Admin tools:** `/thebox market stall evict main s1` clears a stall into its renter's impound right away. `stall setrent` changes the rent, `stall delete` removes a free stall. `/thebox market wipe` is for a new season (section 16): it clears every stall and empties every impound.
@@ -702,20 +749,20 @@ lp group p1 permission set playerparticles.style.halo true
 lp group p3 permission set playerparticles.style.wings true
 ```
 - Each prestige group inherits the one before it, so P3 players keep P1's particles.
-- Rank groups work the same way, if a rank should unlock something too: `lp group m permission set playerparticles.effect.flame true`.
+- Rank groups work the same way, if a rank should unlock something too. Z's suggested reward, for finishing the ladder, is a first particle: `lp group z permission set playerparticles.effect.flame true`.
 - `playerparticles.effect.*` and `playerparticles.style.*` unlock everything (e.g. for staff).
 - How many particles a player can wear at once is `max-particles` in `plugins/PlayerParticles/config.yml` (default 3). To raise it for a group, grant `playerparticles.particles.max.<number>`, e.g. `lp group p5 permission set playerparticles.particles.max.5 true`.
 
 Players pick their particles with `/pp`.
 
-## 13. Starter kit and food
+## 13. Kits, food and rank perks
 
-**A starter kit on the first join.** New players start with $0, so EssentialsX Spawn gives them a stone pickaxe to start mining. It's the `newbies.kit` set in section 2. Define the kit in `plugins/Essentials/kits.yml`, under `kits:`, then run `/essentials reload`:
+**A starter kit on the first join.** New players start with $0, so EssentialsX Spawn gives them a copper pickaxe to start mining, the pickaxe mine A is planned around. It's the `newbies.kit` set in section 2. Define the kit in `plugins/Essentials/kits.yml`, under `kits:`, then run `/essentials reload`:
 ```yaml
   starter:
     delay: -1
     items:
-      - stone_pickaxe 1
+      - copper_pickaxe 1
 ```
 - **Grant no permission for it.** The first-join kit is "given regardless of cost and permissions". If players also had `essentials.kits.starter`, they could claim it a second time with `/kit starter`.
 - **Only players EssentialsX has never seen get it.** It decides that from its own user data, so a season reset gives everyone the kit again, because it deletes `plugins/Essentials/userdata/` (section 16).
@@ -738,11 +785,140 @@ lp group a permission set essentials.kits.food true
 ```
 Players claim it with `/kit food`.
 
-**`/feed` as a rank unlock.** Pick the rank that earns it (here `m`):
+**`/feed` as a rank unlock,** at K (it's in the command list below):
 ```
-lp group m permission set essentials.feed true
+lp group k permission set essentials.feed true
 ```
 Its cooldown is `heal-cooldown` in `plugins/Essentials/config.yml` (default 60 seconds, shared with `/heal`).
+
+**What players see.** When a player ranks up, TheBox lists what the new rank unlocks, read from the permissions on that rank's LuckPerms group: "New at D: Mine D, Cell upgrade to 5x5, /kit d, /kit pvp1". Kits can be clicked to claim them. In `/rankup list`, pointing at a rank shows the same list. TheBox names its own permissions, EssentialsX kits and commands, and PlayerParticles; it leaves any other permission out. Only permissions set on the rank's own group count, so grant each unlock to the rank that first gets it, as everywhere in this guide.
+
+**Kit settings.** In `plugins/Essentials/config.yml`, then `/essentials reload`:
+- `use-nbt-serialization-in-createkit: true`, so `/createkit` saves items exactly. Without it, the custom pickaxes lose `max_damage`, `unbreakable` and `repair_cost`.
+- `skip-used-one-time-kits-from-kit-list: true`, so `/kit` stops listing a one-time kit (the PvP kits below) once it's claimed.
+- Leave `drop-items-if-full: false`. A kit that doesn't fit is then refused instead of dropped on the ground, where another player could grab it in a PvP mine.
+
+**Rank kits: a spare pickaxe every 2 days.** Each rank has a kit named after it (`/kit d`) with the pickaxe from two ranks below. It's insurance: a player who loses their pickaxe in a PvP mine can still mine the mine two ranks back at its full income while they save for a new one. Ranks inherit, so a player can claim every lower rank's kit too, and they can give or sell the spares to other players. Both are allowed on purpose.
+- `a`, `b`, `c`: a copper pickaxe
+- `d`, `e`: an iron pickaxe with Efficiency II and Unbreaking II
+- `f`, `g`, `h`: a diamond pickaxe with Efficiency III and Unbreaking III
+- `i` to `z`: the pickaxe of the rank two below, so `i` gives G's and `z` gives X's (section 9, "Making the pickaxes")
+
+The first eight can go straight into `kits.yml`. Kit `a` is shown; `b` and `c` are the same. Kits `d` and `e` use `iron_pickaxe 1 efficiency:2 unbreaking:2`, and `f`, `g` and `h` use `diamond_pickaxe 1 efficiency:3 unbreaking:3`:
+```yaml
+  a:
+    delay: 172800
+    items:
+      - copper_pickaxe 1
+```
+Kits `i` to `z` need item components that this format can't write, so make them in-game. For each one, empty your inventory, `/give` yourself the pickaxe from section 9, and run `/createkit i 172800`: `/createkit` saves everything you're carrying as the kit, and 172800 seconds is 2 days. Then grant each kit to its rank in the console:
+```
+lp group a permission set essentials.kits.a true
+lp group b permission set essentials.kits.b true
+lp group c permission set essentials.kits.c true
+lp group d permission set essentials.kits.d true
+lp group e permission set essentials.kits.e true
+lp group f permission set essentials.kits.f true
+lp group g permission set essentials.kits.g true
+lp group h permission set essentials.kits.h true
+lp group i permission set essentials.kits.i true
+lp group j permission set essentials.kits.j true
+lp group k permission set essentials.kits.k true
+lp group l permission set essentials.kits.l true
+lp group m permission set essentials.kits.m true
+lp group n permission set essentials.kits.n true
+lp group o permission set essentials.kits.o true
+lp group p permission set essentials.kits.p true
+lp group q permission set essentials.kits.q true
+lp group r permission set essentials.kits.r true
+lp group s permission set essentials.kits.s true
+lp group t permission set essentials.kits.t true
+lp group u permission set essentials.kits.u true
+lp group v permission set essentials.kits.v true
+lp group w permission set essentials.kits.w true
+lp group x permission set essentials.kits.x true
+lp group y permission set essentials.kits.y true
+lp group z permission set essentials.kits.z true
+```
+`/kit` itself (`essentials.kit`) is already granted to `a` for the food kit. If EssentialsX doesn't recognize an item name in `kits.yml`, make that kit with `/createkit` instead.
+
+**PvP kits: armor once per band.** A one-time kit (`delay: -1`) at the first rank of each PvP band, so players who can fight each other start with the same gear. Netherite only comes from these kits, so losing it in a fight is a real loss. In `kits.yml`:
+```yaml
+  pvp1:
+    delay: -1
+    items:
+      - iron_helmet 1
+      - iron_chestplate 1
+      - iron_leggings 1
+      - iron_boots 1
+      - iron_sword 1
+      - shield 1
+  pvp2:
+    delay: -1
+    items:
+      - diamond_helmet 1
+      - diamond_chestplate 1
+      - diamond_leggings 1
+      - diamond_boots 1
+      - diamond_sword 1
+  pvp3:
+    delay: -1
+    items:
+      - diamond_helmet 1 protection:3
+      - diamond_chestplate 1 protection:3
+      - diamond_leggings 1 protection:3
+      - diamond_boots 1 protection:3
+      - diamond_sword 1 sharpness:3
+  pvp4:
+    delay: -1
+    items:
+      - netherite_helmet 1
+      - netherite_chestplate 1
+      - netherite_leggings 1
+      - netherite_boots 1
+      - netherite_sword 1
+  pvp5:
+    delay: -1
+    items:
+      - netherite_helmet 1 protection:4
+      - netherite_chestplate 1 protection:4
+      - netherite_leggings 1 protection:4
+      - netherite_boots 1 protection:4
+```
+```
+lp group d permission set essentials.kits.pvp1 true
+lp group i permission set essentials.kits.pvp2 true
+lp group n permission set essentials.kits.pvp3 true
+lp group s permission set essentials.kits.pvp4 true
+lp group x permission set essentials.kits.pvp5 true
+```
+With `kit-auto-equip: true` in EssentialsX's config, armor from a kit goes straight on when the armor slots are empty.
+
+**Commands as rank perks.** EssentialsX's permission for a command is `essentials.<command>`. The suggested ladder, in the console:
+```
+lp group b permission set essentials.hat true
+lp group e permission set essentials.workbench true
+lp group f permission set essentials.enderchest true
+lp group h permission set essentials.nick true
+lp group l permission set essentials.disposal true
+lp group o permission set essentials.ptime true
+lp group o permission set essentials.pweather true
+lp group q permission set essentials.nick.color true
+lp group t permission set essentials.nick.rgb true
+```
+That's `/hat`, `/workbench`, `/enderchest`, `/nick`, `/disposal` (a bin), `/ptime` and `/pweather`, then colored nicknames at Q (the 16 named colors) and any color at T. Leave out `/repair`: pickaxe wear is the money sink the store's prices are built on. Leave out `/fly`, `/top` and `/back` too: they get players over walls, or straight back to where they died in a PvP mine.
+
+**Effects as rank perks.** TheBox gives Night Vision and Speed to ranks that have the permission, as long as the player keeps them switched on in `/effects`:
+```
+lp group c permission set thebox.effect.night_vision true
+lp group i permission set thebox.effect.speed.1 true
+lp group s permission set thebox.effect.speed.2 true
+```
+- `/effects` opens a menu where players switch each one on or off; `/effects speed` does it without the menu. Their choice is saved with their player data.
+- The effects are infinite and particle-free, and come back after milk, a totem or a death. A potion of the same effect still works on top.
+- Night Vision from a rank also works away from mines; mines still give everyone Night Vision nearby.
+- Ops don't get them automatically (they default to off), so test with a non-op player, or grant them to yourself.
+- Haste and Jump Boost are left out on purpose. Haste makes stone break faster than the pickaxe ramp plans for (at H, Haste II doubles what the mine pays), and from I on it does almost nothing. Jump Boost I jumps 1.83 blocks, enough to clear fences and walls.
 
 ## 14. Check that it works
 
@@ -753,6 +929,9 @@ As a **non-op** player:
    - PvP levels need two non-op players a mine apart. In the lower player's mine, neither can hit the other (melee, arrows, or a splash or lingering potion of poison); the attacker sees "Only players at this mine's level can fight here." The same goes a few blocks outside the mine. Afterwards `/mine` still works for both: a blocked hit must not combat-tag anyone.
 4. Mine some blocks, then run `/sell all` (or `/sell hand`, `/sell worth`). `/sell top` lists you with what you've earned; after another `/sell all` your total goes up. With the hologram (section 7), you're on it within a minute.
 5. `/rankup list` shows the ladder with the player's rank marked and the next rank's cost; `/rankup help` lists the rank commands. `/rankup` buys the next rank (`/rankup max` buys as many as you can afford). The whole server sees an announcement.
+   - Ranks show in their colors (section 6). After ranking up to D, chat says what D unlocks, e.g. "New at D: Mine D, Cell upgrade to 5x5, /kit d, /kit pvp1"; clicking `/kit d` claims the kit, and running it again says it's on cooldown. `/kit pvp1` works once. In `/rankup list`, pointing at a rank shows what it unlocks, and the next rank's unlocks are listed under the ladder.
+   - At C, `/effects` opens a menu with Night Vision on (it shimmers) and Speed locked. Away from mines you keep Night Vision; switch it off and it goes, but walking into a mine's area still gives it, and it goes again when you walk out. Switched back on, it comes back after drinking milk and after dying.
+   - A brand-new player sees "THE YARD" a few seconds after joining. Ranking up from C to D shows "THE SLUDGEWORKS" with a bubbling sound; D to E shows nothing. `/thebox mine reset` on a level 1 mine sends players near it a Sludgeworks message such as "Fresh sludge pours into …", and after `/prestige confirm` the player sees "THE YARD" again.
 6. Walking into a locked mine is blocked with "You haven't unlocked … yet."
 7. At the top rank, `/prestige` explains what prestiging does, and `/prestige confirm` does it: the player goes back to `a`, joins `p1`, their balance goes to 0 (items and cell stay), and the server sees an announcement. Chat now shows `[P1] [A]` before their name, and `/sell top` still has their total.
 8. A non-op player without `thebox.marketplace.main` gets "You haven't unlocked any markets yet." from `/market`, and `/market main` says "You haven't unlocked that market." With it: `/market`, stand in a free stall, `/market rent`. Building works in your stall and nowhere else in the market. With `day-length-minutes: 2` and auto-renew off, the stall freezes after 2 minutes; after the grace period its contents show up in `/market claim`.
@@ -810,7 +989,7 @@ Player data is spread over several plugins, and some of it can only be deleted w
 
    | Delete | What it resets |
    |---|---|
-   | `world/players/data/`, `world/players/advancements/`, `world/players/stats/` | Inventories, ender chests, XP, spawn points, recipes, advancements, statistics |
+   | `world/players/data/`, `world/players/advancements/`, `world/players/stats/` | Inventories, ender chests, XP, spawn points, recipes, advancements, statistics, and which `/effects` players switched off |
    | `plugins/Essentials/userdata/` | Balances (back to `starting-balance`), used kits, homes, nicknames, mail, mutes. Everyone counts as new again, so they get the starter kit. |
    | `plugins/PvPManager/database.db` | PvP toggles and newbie protection (PvPManager's default storage) |
    | `plugins/TheBox/earnings.yml` | Lifetime `/sell` earnings (`/sell top` and the top sellers hologram) |
@@ -837,6 +1016,45 @@ Player data is spread over several plugins, and some of it can only be deleted w
 - **To keep homes, nicknames, mail and mutes,** skip `userdata/` and run `eco reset ** 0` in step 4 instead. That resets everyone to `starting-balance`; check `/baltop` afterwards. Players then don't get the starter kit again, because EssentialsX still knows them, and kits they've used stay on cooldown.
 - **Where new players arrive** is Multiverse's `first-spawn-override` (section 2). Multiverse decides who's new from the vanilla player files that step 3 deletes.
 - **Newbie protection** only goes to players the server has never seen, so it depends on deleting the player files. Test it with a brand-new account at least once. An EssentialsX source comment says `hasPlayedBefore()`, which PvPManager uses, is unreliable on current server software.
+
+## 17. Themes
+
+Each PvP band has a theme: a place the prison sends players to as they climb, each one stranger than the last. TheBox writes six to `plugins/TheBox/themes.yml` the first time it starts:
+
+| Theme | Ranks | Mines | The place |
+|---|---|---|---|
+| The Yard | A–C | level 0 | The prison's rock yard, with guard towers and a rock crusher. No PvP. |
+| The Sludgeworks | D–H | level 1 | A leaking chemical plant: rusted pipes, hazard stripes, vats of murky water. |
+| The Cryo Vault | I–M | level 2 | A prison where inmates were frozen, rows of them in ice under cold blue light. |
+| The Blackout | N–R | level 3 | A deep mining colony that lost power, lit by blue soul lanterns. Deepslate starts breaking instantly here. |
+| The Neon Undercity | S–W | level 4 | A cyberpunk market under the prison: neon tubes and holographic signs. |
+| Starfall | X–Z | level 5 | Asteroids in the void under a permanent night sky, each mine a box inside a hand-built asteroid. Falling off is deadly, and items that fall into the void are gone. |
+
+What a theme does:
+- **A band title.** Ranking up into a band shows its title, with a line under it and a sound: "THE BLACKOUT", "Transferred. Bring a light." New players see The Yard's a few seconds after their first join, and a player who prestiges sees it again.
+- **Reset messages.** When a mine resets, players near it get one of its theme's messages instead of "Mine … has been reset", such as "A meteor shower refills Asteroid Y". `<mine>` in a message is the mine's name, so give mines names that read well in a sentence (`/thebox mine setname`).
+- **Which mines:** a mine uses the theme of its PvP level (section 9, step 6). To give one mine another theme, for example an event mine at level 0: `/thebox mine settheme <mine> <theme>`, and `auto` to go back. `/thebox mine list` shows each mine's theme.
+
+Mobs, the currencies they drop, band shops and Starfall's low gravity come in later versions of TheBox.
+
+**Customizing.** Edit `themes.yml`, then run `/thebox theme reload`. `/thebox theme preview <theme>` shows you a theme's title and one of its reset messages, and `/thebox theme list` lists them all. One theme looks like this:
+```yaml
+themes:
+  blackout:
+    name: "<#78A7FF>The Blackout"
+    level: 3
+    ranks: [n, o, p, q, r]
+    title: "<#78A7FF>THE BLACKOUT"
+    subtitle: "<gray>Transferred. Bring a light."
+    sound: ambient.cave
+    reset-messages:
+      - "<#AAC8FF>Something rebuilt <mine> in the dark."
+      - "<#AAC8FF>The tunnels of <mine> collapse and settle."
+```
+- Names, titles and messages use [MiniMessage](https://docs.papermc.io/adventure/minimessage/format/). The default colors follow the rank colors (section 6).
+- `sound` is a Minecraft sound id, as in `/playsound`; leave it empty (`""`) for none.
+- `ranks` decides when the title shows: ranking up into one of them from a rank outside the list. Keep them in line with the mines' levels, so the title shows when players reach the band's mines.
+- You can rename, rewrite or add themes. Settings that later versions add (mobs, shops) get their defaults only in the six built-in themes, so a theme you add starts without them. Delete `themes.yml` and restart to get the defaults back.
 
 ## Network (later)
 

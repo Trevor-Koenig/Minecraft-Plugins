@@ -13,6 +13,9 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.plugin.java.JavaPlugin;
+import tech.shulker.thebox.themes.Theme;
+import tech.shulker.thebox.themes.ThemeManager;
 
 /**
  * Players' places on the rank ladder, which LuckPerms stores: the ladder is the "ranks" track, and a
@@ -24,10 +27,17 @@ public class RankLadder implements Listener {
     public static final String TRACK = "ranks";
     public static final String PRESTIGE_TRACK = "prestige";
 
-    private final LuckPerms luckPerms;
+    /** How long after joining a new player sees the first band's title: long enough for the world to finish loading. */
+    private static final long WELCOME_TITLE_DELAY_TICKS = 60;
 
-    public RankLadder(LuckPerms luckPerms) {
+    private final JavaPlugin plugin;
+    private final LuckPerms luckPerms;
+    private final ThemeManager themes;
+
+    public RankLadder(JavaPlugin plugin, LuckPerms luckPerms, ThemeManager themes) {
+        this.plugin = plugin;
         this.luckPerms = luckPerms;
+        this.themes = themes;
     }
 
     /** The ranks track, or null if it hasn't been created in LuckPerms. Tracks are always in memory. */
@@ -88,16 +98,17 @@ public class RankLadder implements Listener {
     }
 
     /**
-     * Puts a player who isn't on the ladder yet into its first group (rank a), and saves.
+     * Puts a player who isn't on the ladder yet into its first group (rank a), and saves. Returns true if it did.
      * New players are only in LuckPerms' "default" group, which LuckPerms advises against renaming or
      * replacing, so we add the first rank alongside it.
      */
-    public void ensureOnLadder(User user, Track track) {
+    public boolean ensureOnLadder(User user, Track track) {
         if (track.getGroups().isEmpty() || getCurrentGroup(user, track) != null) {
-            return;
+            return false;
         }
         user.data().add(InheritanceNode.builder(track.getGroups().getFirst()).build());
         luckPerms.getUserManager().saveUser(user);
+        return true;
     }
 
     /** Moves the player one group up the track and saves. The result says whether it worked. */
@@ -109,11 +120,23 @@ public class RankLadder implements Listener {
         return result;
     }
 
+    /**
+     * Puts new players on the first rank, and shows them its band's title (The Yard). That's also everyone's first
+     * join of a new season, since a season takes everyone off the ladder.
+     */
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         Track track = getTrack();
-        if (track != null) {
-            ensureOnLadder(getUser(event.getPlayer()), track);
+        Player player = event.getPlayer();
+        if (track != null && ensureOnLadder(getUser(player), track)) {
+            Theme theme = themes.forRank(track.getGroups().getFirst());
+            if (theme != null) {
+                plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                    if (player.isOnline()) {
+                        themes.showTitle(player, theme);
+                    }
+                }, WELCOME_TITLE_DELAY_TICKS);
+            }
         }
     }
 }

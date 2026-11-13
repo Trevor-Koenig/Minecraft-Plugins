@@ -22,6 +22,8 @@ import net.milkbowl.vault.economy.Economy;
 import net.milkbowl.vault.economy.EconomyResponse;
 import org.bukkit.entity.Player;
 import tech.shulker.thebox.sell.VaultEconomy;
+import tech.shulker.thebox.themes.Theme;
+import tech.shulker.thebox.themes.ThemeManager;
 
 /**
  * The player command: /prestige explains what prestiging does, /prestige confirm does it.
@@ -35,11 +37,13 @@ public class PrestigeCommand {
 
     private final RankManager ranks;
     private final RankLadder ladder;
+    private final ThemeManager themes;
     private final Logger logger;
 
-    public PrestigeCommand(RankManager ranks, RankLadder ladder, Logger logger) {
+    public PrestigeCommand(RankManager ranks, RankLadder ladder, ThemeManager themes, Logger logger) {
         this.ranks = ranks;
         this.ladder = ladder;
+        this.themes = themes;
         this.logger = logger;
     }
 
@@ -114,9 +118,14 @@ public class PrestigeCommand {
             Placeholder.parsed("first", firstRank),
             Placeholder.unparsed("balance", economy.format(economy.getBalance(player))));
         player.getServer().broadcast(MiniMessage.miniMessage().deserialize(
-            "<gold><player></gold> <gray>reached</gray> <light_purple>Prestige <level></light_purple><gray>!",
+            "<gold><player></gold> <gray>reached</gray> <gold>Prestige <level></gold><gray>!", // gold, like the [P] chat tag
             Placeholder.component("player", player.name()),
             Placeholder.unparsed("level", String.valueOf(newPrestige))));
+        // Back to the first band, so its title shows again (The Yard, by default).
+        Theme firstBand = themes.forRank(rankTrack.getGroups().getFirst());
+        if (firstBand != null) {
+            themes.showTitle(player, firstBand);
+        }
         return Command.SINGLE_SUCCESS;
     }
 
