@@ -3,6 +3,7 @@ package tech.shulker.thebox.mines;
 
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.LiteralMessage;
+import com.mojang.brigadier.arguments.DoubleArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.RequiredArgumentBuilder;
@@ -80,7 +81,7 @@ public class MineAdminCommand {
             .then(Commands.literal("addblock")
                 .then(mineArgument()
                     .then(Commands.argument("block", ArgumentTypes.resource(RegistryKey.BLOCK))
-                        .then(Commands.argument("weight", IntegerArgumentType.integer(1))
+                        .then(Commands.argument("weight", DoubleArgumentType.doubleArg(0.01))
                             .executes(this::addBlock)))))
             .then(Commands.literal("removeblock")
                 .then(mineArgument()
@@ -147,7 +148,7 @@ public class MineAdminCommand {
             <yellow>/thebox mine create \\<id></yellow> <gray>- create a mine from your WorldEdit selection, with its WorldGuard regions</gray>
             <yellow>/thebox mine list</yellow> <gray>- list all mines</gray>
             <yellow>/thebox mine reset \\<mine></yellow> <gray>- refill a mine now</gray>
-            <yellow>/thebox mine addblock \\<mine> \\<block> \\<weight></yellow> <gray>- add or change a block in the mix</gray>
+            <yellow>/thebox mine addblock \\<mine> \\<block> \\<weight></yellow> <gray>- add or change a block in the mix (weights are relative; decimals like 0.5 work)</gray>
             <yellow>/thebox mine removeblock \\<mine> \\<block></yellow> <gray>- remove a block from the mix</gray>
             <yellow>/thebox mine setresettime \\<mine> \\<seconds></yellow> <gray>- automatic reset interval (0 = off)</gray>
             <yellow>/thebox mine setname \\<mine> \\<name></yellow> <gray>- the name players see (MiniMessage, e.g. \\<gold>Gold Rush)</gray>
@@ -193,7 +194,7 @@ public class MineAdminCommand {
                 throw OVERLAPS_MINE.create(other.getId());
             }
         }
-        mine.getBlocks().put(BlockType.STONE, 100);
+        mine.getBlocks().put(BlockType.STONE, 100.0);
         mine.setResetIntervalSeconds(DEFAULT_RESET_SECONDS);
         mines.add(mine); // also creates its WorldGuard regions
 
@@ -273,7 +274,7 @@ public class MineAdminCommand {
     private int addBlock(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
         Mine mine = getMine(ctx);
         BlockType block = ctx.getArgument("block", BlockType.class);
-        int weight = IntegerArgumentType.getInteger(ctx, "weight");
+        double weight = DoubleArgumentType.getDouble(ctx, "weight");
         mine.getBlocks().put(block, weight);
         mines.save();
         ctx.getSource().getSender().sendRichMessage("<green>Mine <white>" + mine.getId() + "</white> mix is now: " + describeBlocks(mine));
@@ -400,17 +401,18 @@ public class MineAdminCommand {
 
     // ---------------------------------------------------------------- helpers
 
-    /** "stone 70%, coal_ore 30%": each weight shown as a share of the total. */
+    /** "stone 82%, obsidian 0.5%": each weight shown as a share of the total, to one decimal place. */
     private static String describeBlocks(Mine mine) {
-        int total = mine.getBlocks().values().stream().mapToInt(Integer::intValue).sum();
+        double total = mine.getBlocks().values().stream().mapToDouble(Double::doubleValue).sum();
         StringBuilder description = new StringBuilder();
-        for (Map.Entry<BlockType, Integer> entry : mine.getBlocks().entrySet()) {
+        for (Map.Entry<BlockType, Double> entry : mine.getBlocks().entrySet()) {
             if (!description.isEmpty()) {
                 description.append(", ");
             }
+            double percent = Math.round(entry.getValue() * 1000 / total) / 10.0;
             description.append(entry.getKey().key().value())
                 .append(' ')
-                .append(Math.round(entry.getValue() * 100.0 / total))
+                .append(percent % 1 == 0 ? String.valueOf((long) percent) : String.valueOf(percent))
                 .append('%');
         }
         return description.toString();

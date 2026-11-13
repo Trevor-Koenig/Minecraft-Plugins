@@ -113,14 +113,14 @@ public class RankManager {
     /**
      * Default costs, a to z (a is where players start, so its cost is unused). They follow the design's pacing formula,
      * rounded: hours for the rank (B 15 min, C 30 min, D 1 h, then +18 min a rank) × an hour's income in the mine before
-     * it. Mines A to F, with vanilla pickaxes, pay from $14,400 an hour, each 1.15× the one before. From G, players have
-     * god-tier pickaxes that mine about 4× faster, and each mine pays at least 1.2× the one before. README sections 6
-     * and 9 list them.
+     * it. Mines A to F pay from $14,400 an hour, each 1.15× the one before. From G, each rank's pickaxe adds Efficiency
+     * or Fortune; stone breaks instantly from I, which is why J costs about 3× I. Each mine from G pays at least 1.2× the
+     * one before. README sections 6 and 9 list them.
      */
     private static final double[] DEFAULT_COSTS = {
-        0, 3_600, 8_300, 19_000, 28_000, 40_000, 55_000, 360_000, 530_000, 730_000, 990_000, 1_300_000, 1_800_000,
-        2_300_000, 3_500_000, 4_300_000, 5_500_000, 7_000_000, 8_500_000, 11_000_000, 14_000_000, 18_000_000,
-        23_000_000, 28_000_000, 36_000_000, 46_000_000
+        0, 3_600, 8_300, 19_000, 28_000, 40_000, 55_000, 120_000, 190_000, 550_000, 770_000, 980_000, 1_400_000,
+        1_800_000, 2_800_000, 3_500_000, 4_600_000, 6_000_000, 7_300_000, 9_300_000, 12_000_000, 15_000_000,
+        19_000_000, 24_000_000, 30_000_000, 37_000_000
     };
 
     /** a to z, with DEFAULT_COSTS. */

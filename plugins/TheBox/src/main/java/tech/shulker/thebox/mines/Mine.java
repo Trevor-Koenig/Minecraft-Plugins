@@ -22,8 +22,8 @@ public class Mine {
     private final int minX, minY, minZ;
     private final int maxX, maxY, maxZ;
 
-    /** Block type to weight, e.g. stone 70, coal ore 20, iron ore 10. Weights are relative. */
-    private final Map<BlockType, Integer> blocks = new LinkedHashMap<>();
+    /** Block type to weight, e.g. stone 82, coal ore 11, copper ore 7. Weights are relative, and decimals work (0.5). */
+    private final Map<BlockType, Double> blocks = new LinkedHashMap<>();
 
     /** Seconds between automatic resets; 0 means no automatic reset. */
     private int resetIntervalSeconds = 0;
@@ -79,7 +79,7 @@ public class Mine {
     public int getMaxX() { return maxX; }
     public int getMaxY() { return maxY; }
     public int getMaxZ() { return maxZ; }
-    public Map<BlockType, Integer> getBlocks() { return blocks; }
+    public Map<BlockType, Double> getBlocks() { return blocks; }
 
     /** The permission a player needs to teleport to this mine. */
     public String getPermission() {

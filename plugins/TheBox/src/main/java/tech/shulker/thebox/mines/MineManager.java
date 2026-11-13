@@ -563,7 +563,7 @@ public class MineManager implements Listener {
                 for (String key : blocks.getKeys(false)) {
                     NamespacedKey blockKey = NamespacedKey.fromString(key);
                     BlockType type = blockKey == null ? null : Registry.BLOCK.get(blockKey);
-                    int weight = blocks.getInt(key);
+                    double weight = blocks.getDouble(key); // older files have whole numbers, which read fine
                     if (type == null || weight <= 0) {
                         plugin.getLogger().warning("Mine '" + id + "': ignoring unknown block or bad weight '" + key + "'.");
                         continue;
@@ -573,7 +573,7 @@ public class MineManager implements Listener {
             }
             if (mine.getBlocks().isEmpty()) {
                 plugin.getLogger().warning("Mine '" + id + "' has no valid blocks; defaulting to stone.");
-                mine.getBlocks().put(BlockType.STONE, 100);
+                mine.getBlocks().put(BlockType.STONE, 100.0);
             }
 
             SavedLocation teleport = SavedLocation.read(m, "teleport");
@@ -629,8 +629,9 @@ public class MineManager implements Listener {
             yaml.set(path + "max.x", mine.getMaxX());
             yaml.set(path + "max.y", mine.getMaxY());
             yaml.set(path + "max.z", mine.getMaxZ());
+            // Whole weights are written as whole numbers (82, not 82.0), so the file stays easy to edit by hand.
             mine.getBlocks().forEach((type, weight) ->
-                yaml.set(path + "blocks." + type.key().asString(), weight));
+                yaml.set(path + "blocks." + type.key().asString(), weight % 1 == 0 ? (Object) weight.intValue() : weight));
             yaml.set(path + "reset-interval-seconds", mine.getResetIntervalSeconds());
             yaml.set(path + "reset-percent", mine.getResetPercent());
             yaml.set(path + "level", mine.getLevel());
