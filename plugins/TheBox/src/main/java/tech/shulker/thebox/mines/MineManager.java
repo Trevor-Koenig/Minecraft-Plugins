@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package tech.shulker.thebox.mines;
 
+import com.destroystokyo.paper.event.player.PlayerPostRespawnEvent;
 import com.sk89q.worldedit.EditSession;
 import com.sk89q.worldedit.MaxChangedBlocksException;
 import com.sk89q.worldedit.WorldEdit;
@@ -31,6 +32,9 @@ import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
 import org.bukkit.World;
+import org.bukkit.attribute.Attribute;
+import org.bukkit.attribute.AttributeInstance;
+import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.block.BlockType;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -77,9 +81,13 @@ public class MineManager implements Listener {
 
     private final ThemeManager themes;
 
+    /** TheBox's gravity and safe fall distance modifiers. A modifier's key only has to be unique on its attribute. */
+    private final NamespacedKey gravityKey;
+
     public MineManager(JavaPlugin plugin, ThemeManager themes) {
         this.plugin = plugin;
         this.themes = themes;
+        this.gravityKey = new NamespacedKey(plugin, "theme_gravity");
         this.file = new File(plugin.getDataFolder(), "mines.yml");
     }
 
@@ -413,6 +421,7 @@ public class MineManager implements Listener {
             }
         }
         updateNightVision(player, to);
+        updateGravity(player, to);
     }
 
     /**
@@ -469,10 +478,88 @@ public class MineManager implements Listener {
         return false;
     }
 
-    /** Effects are saved with the player, so someone who logged out in a mine would otherwise keep it forever. */
+    /**
+     * Effects are saved with the player, so someone who logged out in a mine would otherwise keep Night Vision forever.
+     * Gravity is the other way round: it isn't saved, so someone who logs in on an asteroid needs it back.
+     */
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         updateNightVision(event.getPlayer(), event.getPlayer().getLocation());
+        updateGravity(event.getPlayer(), event.getPlayer().getLocation());
+    }
+
+    /**
+     * Respawning isn't a teleport, so onMove never sees the jump from where the player died to their respawn point.
+     * Paper's PlayerPostRespawnEvent comes once they're there.
+     */
+    @EventHandler
+    public void onRespawn(PlayerPostRespawnEvent event) {
+        updateNightVision(event.getPlayer(), event.getRespawnedLocation());
+        updateGravity(event.getPlayer(), event.getRespawnedLocation());
+    }
+
+    // ---------------------------------------------------------------- theme gravity
+
+    /**
+     * Within its theme's margin of a mine, players get the theme's gravity and safe fall distance (Starfall's low
+     * gravity). The modifiers are transient, so they're never saved with the player and a crash can't leave them on.
+     * Checked on every block-to-block move, like Night Vision.
+     */
+    private void updateGravity(Player player, Location location) {
+        Theme.Gravity gravity = gravityAt(location);
+        AttributeInstance safeFall = player.getAttribute(Attribute.SAFE_FALL_DISTANCE);
+        setGravityModifier(player.getAttribute(Attribute.GRAVITY), AttributeModifier.Operation.MULTIPLY_SCALAR_1,
+            gravity == null ? 0 : gravity.multiplier() - 1);
+        // The setting is a total, so the modifier adds the difference from the player's base value (normally 3).
+        setGravityModifier(safeFall, AttributeModifier.Operation.ADD_NUMBER,
+            gravity == null || safeFall == null ? 0 : gravity.safeFallDistance() - safeFall.getBaseValue());
+    }
+
+    /**
+     * The gravity at this location: that of a theme which changes gravity, if the location is within its margin of
+     * one of its mines. Null for normal gravity. Where areas overlap, a theme that changes gravity wins.
+     */
+    private Theme.Gravity gravityAt(Location location) {
+        for (Mine mine : mines.values()) {
+            Theme theme = themeOf(mine);
+            if (theme != null && !theme.gravity().equals(Theme.Gravity.NORMAL)
+                    && mine.isNear(location, theme.margin())) {
+                return theme.gravity();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Gives the attribute TheBox's modifier with this amount, or removes it for 0. Does nothing if it's already right:
+     * every change is sent to the player's client, and this runs on every step.
+     */
+    private void setGravityModifier(AttributeInstance attribute, AttributeModifier.Operation operation, double amount) {
+        if (attribute == null) {
+            return;
+        }
+        AttributeModifier current = attribute.getModifier(gravityKey);
+        if (current != null && current.getAmount() == amount && current.getOperation() == operation) {
+            return;
+        }
+        if (current != null) {
+            attribute.removeModifier(gravityKey);
+        }
+        if (amount != 0) {
+            // Adding a key the attribute already has throws, hence the removal above.
+            attribute.addTransientModifier(new AttributeModifier(gravityKey, amount, operation));
+        }
+    }
+
+    /**
+     * Takes TheBox's gravity off every online player. For when TheBox is disabled (a plugin reload) and players stay
+     * online: nothing would ever take it off them otherwise.
+     */
+    public void clearGravity() {
+        for (Player player : plugin.getServer().getOnlinePlayers()) {
+            setGravityModifier(player.getAttribute(Attribute.GRAVITY), AttributeModifier.Operation.MULTIPLY_SCALAR_1, 0);
+            setGravityModifier(player.getAttribute(Attribute.SAFE_FALL_DISTANCE), AttributeModifier.Operation.ADD_NUMBER, 0);
+        }
     }
 
     // ---------------------------------------------------------------- PvP in mines

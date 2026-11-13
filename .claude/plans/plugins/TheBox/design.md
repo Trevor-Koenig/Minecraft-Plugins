@@ -8,7 +8,7 @@ The admin setup guide is [plugins/TheBox/README.md](../../../../plugins/TheBox/R
 Start here when picking TheBox up again. The details are in the sections this points to.
 
 **Where things stand**
-- The last commit is `aa8b55d` ("Mines allow double weights and updated readme"). Everything below is **uncommitted**. `./gradlew build` passes, but none of it has been tried in-game; README section 14 has the checks.
+- Everything below is committed (`d759175`, "Added mine themes"), except low gravity and a few README and design doc fixes: where to download EssentialsX for 26.3, the "Kit item" lore, and the top sellers board as a DecentHolograms Display. `./gradlew build` passes, but none of it has been tried in-game; README section 14 has the checks.
   - **Rank rewards** (M3 steps 11–15, section Rank rewards):
     - Rank colors: default names and a `setname` list.
     - Rank-up messages and `/rankup list` hovers that list each rank's unlocks, read from LuckPerms (`ranks/Unlocks`).
@@ -16,15 +16,14 @@ Start here when picking TheBox up again. The details are in the sections this po
     - The gold prestige announcement.
     - Kit, command and effect setup in README section 13.
   - **Themes, step 1** (M7, section Themes): `themes.yml` with six default sites, band titles, themed reset messages, `/thebox mine settheme` and `/thebox theme list|preview|reload` (`themes/`, README section 17).
+  - **Low gravity, step 2** (M7): Starfall's quarter gravity and 12-block safe fall, reaching `theme-margin` blocks past each mine (`MineManager`, README sections 14 and 17).
+  - **Themed base blocks** (part of M7 step 4, README only): one base block per mine in the suggested mixes (README section 9), priced in section 7 (section Themes).
 - The proposal page with the rank colors and the rank-by-rank rewards (private to the owner): https://claude.ai/code/artifact/5d60884a-16fb-4018-a409-730aa03b96e8
 
 **Next, in order** (M7; the owner approved the order)
-1. **Low gravity for Starfall.**
-   - A transient `Attribute.GRAVITY` modifier (0.25× gives 3.7-block jumps) plus a higher `SAFE_FALL_DISTANCE`, while a player is in a Starfall mine's area, set per theme in `themes.yml`.
-   - Remove both on leaving the area, on death and on logout. Transient modifiers aren't saved, so a crash can't leave them on.
-2. **Mobs, band currencies and band shops.** Everything is decided (section Themes). M7 step 3 has the building notes, including WorldGuard cancelling plugin spawns in mine regions. Still open: the Blackout's and the Undercity's signature items.
-3. **Themed mixes and prices.**
-   - Rework each band's mixes with its blocks, following the block rules in section Themes, so every mine still pays its target. Allow for time spent fighting.
+1. **Mobs, band currencies and band shops.** Everything is decided (section Themes). M7 step 3 has the building notes, including WorldGuard cancelling plugin spawns in mine regions. Still open: the Blackout's and the Undercity's signature items.
+2. **Themed mixes and prices.** The base blocks are done (one per mine, same pay as before). What's left changes income:
+   - Add infested deepslate (Blackout), and nether quartz ore, raw iron and gold block meteorites and crying obsidian (Undercity, Starfall), following the block rules in section Themes. Re-tune the mixes so every mine still pays its target, allowing for time spent fighting.
    - Add the new blocks' prices to README section 7.
    - The mining model, since the old scratchpad scripts won't survive:
      - A block takes ceil(30 × hardness ÷ speed) + 6 ticks, or breaks instantly when speed ≥ 30 × hardness.
@@ -37,11 +36,14 @@ Start here when picking TheBox up again. The details are in the sections this po
 - Chat colors at U (section Rank rewards): they change the text of player messages, so check how that interacts with chat signing first.
 - `prestige-multiplier` (0.5 or 0.7) and season length (section Economy and pacing).
 - Starfall's void world: pick a world generator when building it (section Themes).
+- Once the asteroids are built, raise Starfall's `theme-margin` so its low gravity covers them (owner).
+- `/ptime` (rank O) lets a player see daytime on their own screen, Starfall's permanent night included. Keep it or drop it (owner).
+- Check in-game that a crafting-grid repair of two kit items keeps the "Kit item" lore (section Rank rewards).
 - Measure the 210 blocks a minute that instant mining is modelled at, once I's pickaxe exists in-game.
 
 **Plugins** (README section 1)
 - **Hard dependencies:** WorldEdit, WorldGuard, VaultUnlocked and LuckPerms.
-- **Needed for the README's setup:** EssentialsX and EssentialsX Spawn, and PvPManager.
+- **Needed for the README's setup:** EssentialsX and EssentialsX Spawn, and PvPManager. Neither EssentialsX jar has a 26.3 release yet; both come from the same dev build, [#1833](https://ci.ender.zone/job/EssentialsX/1833/) (2.22.1-dev, which also has `EssentialsXSpawn`). If Spawn ever has to go, TheBox already knows a player's first join (`RankLadder.ensureOnLadder` returns true) and could hand out the starter kit itself.
 - **Optional, but the server booths need it:** QuickShop-Hikari. The starter gear store and the pickaxe store markets are QuickShop shops.
 - **Optional:** Multiverse-Core, PacketEvents, PlaceholderAPI, ajLeaderboards, DecentHolograms and PlayerParticles.
 - Nothing built so far needs another plugin, and nothing planned in M7 does either, except possibly a generator for Starfall's void world.
@@ -53,7 +55,7 @@ Start here when picking TheBox up again. The details are in the sections this po
 - Back up WorldGuard's `regions.yml` before deploying: TheBox now takes over existing `mine_<id>` regions (M1 follow-ups).
 - In the console, paste the H–Z `setcost` list and the rank color `setname` list (README section 6).
 - Update `cells.yml` prices for sizes 4–9 (section 11).
-- Set up the kits, command perks and effect permissions (section 13), and Z's particle (section 12).
+- Set up the kits, with the `Kit_item` lore lines so kit items can't be sold, plus the command perks and effect permissions (section 13), and Z's particle (section 12). Take EssentialsX and EssentialsX Spawn from the same dev build (README section 1).
 - Grant `thebox.marketplace.<id>` for the store markets (section 10).
 - Remove EssentialsX Chat if it's installed: TheBox formats chat itself.
 - Name mines so they read well in reset messages, for example `<#FE5C59>Asteroid Y` (section 17).
@@ -191,6 +193,7 @@ Decided 2026-11-13 (owner), from a proposal page showing the colors in a mock ch
   - **Band armor kits,** one-time (`delay: -1`): D iron armor, iron sword and shield; I diamond armor and sword; N Protection III diamond armor and a Sharpness III sword; S netherite armor and sword; X Protection IV netherite armor. Netherite exists only through these kits, so losing it in a fight is a real loss.
   - The starter kit gives a copper pickaxe instead of stone, since mine A assumes copper.
   - EssentialsX settings: `use-nbt-serialization-in-createkit: true` before `/createkit` (or custom pickaxes lose `max_damage`, `unbreakable` and `repair_cost`), `skip-used-one-time-kits-from-kit-list: true`. `drop-items-if-full: false` (the default) refuses a kit that doesn't fit instead of dropping it in a PvP mine.
+  - **Kit items can't be sold** *(owner, 2026-11-13)*: plain kit items (the starter and `a`–`c` copper pickaxes, the `pvp1`, `pvp2` and `pvp4` armor and swords) get a `lore:&7Kit_item` line, so `/sell`'s plain-item check (`PriceManager.isPlain`) refuses them, as it does enchanted items. Lore rather than a name, because an anvil with a blank name field restores the default name; survival has no way to remove lore. The food kit needs nothing, since food is unpriced. To check in-game: whether repairing two items of the same type in a crafting grid ([Item repair](https://minecraft.wiki/w/Item_repair)) keeps the lore. The wiki only says enchantments other than curses are lost. If the lore goes too, two free copper pickaxes from rank kits `a`–`c` make one sellable one, worth about $27 if `copper_pickaxe` is priced (3 raw copper × 1.5). That's small enough to accept, or leave tools unpriced.
 - **Effects** (TheBox code, owner): Night Vision everywhere at C, Speed I at I, Speed II at S. A permission each (`thebox.effect.night_vision`, `thebox.effect.speed.1`, `thebox.effect.speed.2`), applied as infinite, particle-free effects, with an `/effects` menu to switch each on or off; reapplied after joining, dying and milk. Mine Night Vision must leave the perk alone (today it removes any infinite Night Vision when a player leaves a mine's area).
 - **Commands** (EssentialsX permissions on rank groups): B `/hat`, E `/workbench`, F `/enderchest`, H `/nick`, K `/feed`, L `/disposal`, O `/ptime` and `/pweather`, Q colored nicknames (`essentials.nick.color`), T hex nicknames (`essentials.nick.rgb`). U: colors and bold in chat messages (TheBox code: MiniMessage limited to color and decoration tags). Z: a first PlayerParticles effect.
 - **Left out on purpose:**
@@ -214,7 +217,12 @@ Decided 2026-11-13 (owner). Each PvP band is a themed site. The first proposal (
   - No falling, attached or harmful blocks.
   - Fortune only multiplies ores, so real ores (or nether quartz ore) stay most of a mine's income.
   - New blocks are priced so they can't be farmed.
+- **One base block per mine** *(owner, 2026-11-13)*: several base blocks mixed at random would look like speckle. Each band goes through its list in order, with a repeated block covering neighbouring mines: A stone, B andesite, C granite; D–H lime, yellow, green, orange and brown terracotta; I–M calcite, diorite, light blue, cyan and white terracotta; N–O deepslate, P–Q tuff, R polished blackstone; S–W purple concrete, magenta concrete, purple and magenta glazed terracotta, amethyst block; X–Z blackstone, basalt, end stone.
+  - Green, orange, brown and white terracotta were added so five-mine bands don't have to repeat.
+  - Each one is priced like the stone ($3, B–M) or deepslate ($4, P–Z) it replaces, and breaks just as fast with that rank's pickaxe: terracotta's 1.25 hardness takes the same whole ticks as stone with Efficiency III–V, and everything from I and N breaks instantly. So the mixes' pay didn't change.
+  - Considered and set aside: several base blocks per mine arranged in noise patches (like vanilla's granite in stone) or in layers. The fill already uses a position-aware WorldEdit `Pattern`, and Bukkit has `SimplexNoiseGenerator`, if this comes back.
 - **Low gravity** (Starfall) uses the player `gravity` attribute (since 1.20.5) as a transient modifier, not Jump Boost and Slow Falling, which drift down like a feather. A quarter of normal gravity gives 3.7-block jumps and 1.9 s in the air; the area also raises the safe fall distance, or landings would hurt. Knockback flies farther, which raises the void risk.
+  - It reaches a theme's `theme-margin` past each of its mines (default 8, the mine's area), so it can cover a whole asteroid (owner, 2026-11-13). Safe fall is 12 blocks: 3 ÷ 0.25, so landings feel like a normal 3-block drop (owner).
 - **Mobs** (owner, so a small server feels alive):
   - TheBox spawns themed mobs in mine areas near players, capped, and removes them at resets; vanilla spawning stays off.
   - WorldGuard's `mobs.block-plugin-spawning` (default true) cancels plugin spawns in `mob-spawning deny` regions, which TheBox sets on mines, so TheBox has to let its own mobs (and nest silverfish) through itself.
@@ -470,7 +478,7 @@ M2 was tested in the first player test (2026-11-08). Implementation notes:
 - Unsellable and customized items are named in the error, using the custom name if renamed.
 - `/sell worth` (players): shows what the held item sells for *(tested in the first player test, 2026-11-08)*.
 - **Lifetime earnings and `/sell top`** *(built 2026-11-13, untested; players asked for it in the first test)*. `Earnings` adds every `/sell hand` and `/sell all` payout to the player's total in `earnings.yml` (UUID → last-known name and total, saved after each sale). Only `/sell` counts: it's the only money the server creates, and `/pay` or shop sales could be passed back and forth between friends to climb the board. The impound's auto-sell doesn't count either. `/sell top` lists the top 10 and the player's own place. Prestige keeps the totals; a season deletes `earnings.yml` (`README.md` section 16).
-  - The hologram (owner's choice over chat only): `%thebox_earned%` (PlaceholderAPI, whole dollars, works for offline players), ranked by ajLeaderboards and shown by DecentHolograms. The map is a `ConcurrentHashMap` because placeholder plugins read it from their own threads.
+  - The hologram (owner's choice over chat only): `%thebox_earned%` (PlaceholderAPI, whole dollars, works for offline players), ranked by ajLeaderboards and shown by DecentHolograms as a text Display (`/dh d`, 2026-11-13), because `/dh h` holograms are armor-stand name tags, which show through walls. The map is a `ConcurrentHashMap` because placeholder plugins read it from their own threads.
 
 ### M3: Ranks and prestige
 Configurable ladder, `/rankup`, `/ranks`, unlocks via LuckPerms, prestige.
@@ -627,12 +635,17 @@ Each PvP band as a themed site (see Themes). Build order decided by the owner, 2
   - Titles use Adventure's `Title` with the theme's sound. They show when `/rankup` (or the last band `/rankup max` reaches) enters a band from outside it, a few seconds after a new player's first join (`RankLadder.ensureOnLadder` now reports when it added someone), and after `/prestige confirm`.
   - Reset messages replace "Mine … has been reset". The mine name goes in as a component placeholder, so its colors stay inside it.
   - A mine's theme comes from `MineManager.themeOf`: the one set with `/thebox mine settheme`, otherwise the one for its level. `/thebox theme list|preview|reload`. README section 17.
-- [ ] 2. Low gravity for Starfall: a transient `gravity` modifier (plus a higher safe fall distance) while in the theme's mine areas, set per theme in `themes.yml`.
+- [x] 2. Low gravity for Starfall *(built 2026-11-13, untested)*.
+  - `Theme.Gravity(multiplier, safeFallDistance)` from `gravity` and `safe-fall-distance` in `themes.yml`, written only for themes that change them; Starfall's built-in default is 0.25 and 12. `theme-margin` is a theme-wide setting (default `Mine.AREA_MARGIN`), so later area effects can use it too.
+  - `MineManager.updateGravity` runs next to Night Vision on every block-to-block move, teleport and join. Transient modifiers under `thebox:theme_gravity`: `MULTIPLY_SCALAR_1` of multiplier − 1 on `GRAVITY`, `ADD_NUMBER` of setting − base value on `SAFE_FALL_DISTANCE`. A modifier is only touched when its amount changes, because every change is sent to the client. Where areas overlap, a theme that changes gravity wins.
+  - Paper's `PlayerPostRespawnEvent` re-checks at the respawn point (respawning isn't a teleport), instead of removing it on death; it re-checks Night Vision too. `TheBox.onDisable` calls `clearGravity` for plugin reloads, when players stay online. Logout needs nothing: transient modifiers aren't saved.
+  - Not handled: after a theme reload, `settheme` or `setlevel`, a player standing still keeps the old gravity until their next step.
 - [ ] 3. Mobs, their band currencies and band shops (decided, see Themes). Notes for building:
   - Spawn TheBox's mobs with a tag set in the spawn consumer, and un-cancel tagged spawns (and the Blackout's nest silverfish, reason `SILVERFISH_BLOCK`) at `HIGHEST` priority, after WorldGuard's `HIGH` listener has cancelled them in `mob-spawning deny` mine regions.
   - Remove TheBox's mobs at each reset, when no player is left in the area, and at startup; `setPersistent(false)`, no item pickup, vanilla drops cleared in favour of the band currency.
   - Mob stats (names, equipment, health, `SCALE` for giants or minis), drop amounts, caps and the shop stock go in each theme in `themes.yml`, with defaults for the six built-ins.
 - [ ] 4. Themed mixes and prices: rework each band's mixes with its blocks so every mine still pays its target, allow for time spent fighting, and add the new blocks to README section 7.
+  - Base blocks done 2026-11-13: one per mine in README section 9's suggested mixes, priced in section 7 (see Themes, "One base block per mine"). Still to do: infested deepslate, nether quartz ore, meteorites and crying obsidian, which change income.
 
 ### Gangs *(paused 2026-11-08)*
 Gang bank, alliances, friendly-fire rules, gang chat. See Gang above.

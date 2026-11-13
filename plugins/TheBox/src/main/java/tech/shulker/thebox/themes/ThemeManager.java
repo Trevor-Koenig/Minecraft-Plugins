@@ -22,6 +22,7 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
+import tech.shulker.thebox.mines.Mine;
 
 /**
  * The themes in themes.yml: each PvP band's name, title and reset messages. The first start writes the six default
@@ -127,8 +128,31 @@ public class ThemeManager {
                 t.getString("title", base.title()),
                 t.getString("subtitle", base.subtitle()),
                 t.isSet("sound") ? parseSound(id, t.getString("sound", "")) : base.sound(),
-                t.isList("reset-messages") ? List.copyOf(t.getStringList("reset-messages")) : base.resetMessages()));
+                t.isList("reset-messages") ? List.copyOf(t.getStringList("reset-messages")) : base.resetMessages(),
+                readMargin(id, t, base.margin()),
+                readGravity(id, t, base.gravity())));
         }
+    }
+
+    private int readMargin(String themeId, ConfigurationSection t, int base) {
+        int margin = t.getInt("theme-margin", base);
+        if (margin < 0) {
+            plugin.getLogger().warning("Theme '" + themeId + "': theme-margin can't be negative, so it uses "
+                + Mine.AREA_MARGIN + ".");
+            return Mine.AREA_MARGIN;
+        }
+        return margin;
+    }
+
+    /** A theme's gravity settings, each falling back to the built-in theme's when themes.yml leaves it out. */
+    private Theme.Gravity readGravity(String themeId, ConfigurationSection t, Theme.Gravity base) {
+        double multiplier = t.getDouble("gravity", base.multiplier());
+        if (multiplier <= 0) {
+            // At 0 or below, players who jump would float away and never come down.
+            plugin.getLogger().warning("Theme '" + themeId + "': gravity must be above 0, so its mines keep normal gravity.");
+            multiplier = Theme.Gravity.NORMAL.multiplier();
+        }
+        return new Theme.Gravity(multiplier, t.getDouble("safe-fall-distance", base.safeFallDistance()));
     }
 
     /** Writes all themes to themes.yml. Only used for the defaults: admins edit the file and reload. */
@@ -141,6 +165,9 @@ public class ThemeManager {
             "ranks: the band's ranks. Ranking up into one of them from a rank outside the band shows the title and plays the sound.",
             "sound: a Minecraft sound id, e.g. block.beacon.activate; leave it empty for none.",
             "reset-messages: one is picked at random when one of the theme's mines resets; <mine> is the mine's name.",
+            "theme-margin: how many blocks past each of the theme's mines its effects (like gravity) reach. 8 matches the mine's area, where PvP and Night Vision apply.",
+            "gravity: gravity around the theme's mines, as a multiple of normal (0.25 is a quarter, 1 is normal).",
+            "safe-fall-distance: how many blocks players can fall there without damage (3 is normal).",
             "Settings added in later TheBox versions get their defaults for the six built-in themes if they're missing here."));
         for (Theme theme : themes.values()) {
             String path = "themes." + theme.id() + ".";
@@ -151,6 +178,11 @@ public class ThemeManager {
             yaml.set(path + "subtitle", theme.subtitle());
             yaml.set(path + "sound", theme.sound() == null ? "" : theme.sound().asString());
             yaml.set(path + "reset-messages", theme.resetMessages());
+            yaml.set(path + "theme-margin", theme.margin());
+            if (!theme.gravity().equals(Theme.Gravity.NORMAL)) {
+                yaml.set(path + "gravity", theme.gravity().multiplier());
+                yaml.set(path + "safe-fall-distance", theme.gravity().safeFallDistance());
+            }
         }
         try {
             yaml.save(file);
@@ -180,7 +212,8 @@ public class ThemeManager {
                 return theme;
             }
         }
-        return new Theme(id, id, -1, List.of(), id.toUpperCase(Locale.ROOT), "", null, List.of());
+        return new Theme(id, id, -1, List.of(), id.toUpperCase(Locale.ROOT), "", null, List.of(), Mine.AREA_MARGIN,
+            Theme.Gravity.NORMAL);
     }
 
     /**
@@ -192,25 +225,29 @@ public class ThemeManager {
         new Theme("yard", "<#C5C5C5>The Yard", 0, List.of("a", "b", "c"),
             "<#E8E8E8>THE YARD", "<gray>Break rocks. Earn your way out.", Key.key("block.iron_door.close"),
             List.of("<gray>A fresh load of rock is dumped into <mine>.",
-                "<gray>The guards refill <mine>. Back to work.")),
+                "<gray>The guards refill <mine>. Back to work."), Mine.AREA_MARGIN, Theme.Gravity.NORMAL),
         new Theme("sludgeworks", "<#5ADD66>The Sludgeworks", 1, List.of("d", "e", "f", "g", "h"),
             "<#5ADD66>THE SLUDGEWORKS", "<gray>Transferred. Mind the fumes.", Key.key("block.brewing_stand.brew"),
             List.of("<#A0EEA2>Fresh sludge pours into <mine>.",
-                "<#A0EEA2>The vats overflow and refill <mine>.")),
+                "<#A0EEA2>The vats overflow and refill <mine>."), Mine.AREA_MARGIN, Theme.Gravity.NORMAL),
         new Theme("cryo_vault", "<#48E1E9>The Cryo Vault", 2, List.of("i", "j", "k", "l", "m"),
             "<#48E1E9>THE CRYO VAULT", "<gray>Transferred. Something is thawing.", Key.key("entity.player.hurt_freeze"),
             List.of("<#83EFF5>A cold front refreezes <mine>.",
-                "<#83EFF5>The cryo pumps hiss. <mine> is frozen solid again.")),
+                "<#83EFF5>The cryo pumps hiss. <mine> is frozen solid again."), Mine.AREA_MARGIN, Theme.Gravity.NORMAL),
         new Theme("blackout", "<#78A7FF>The Blackout", 3, List.of("n", "o", "p", "q", "r"),
             "<#78A7FF>THE BLACKOUT", "<gray>Transferred. Bring a light.", Key.key("ambient.cave"),
             List.of("<#AAC8FF>Something rebuilt <mine> in the dark.",
-                "<#AAC8FF>The tunnels of <mine> collapse and settle.")),
+                "<#AAC8FF>The tunnels of <mine> collapse and settle."), Mine.AREA_MARGIN, Theme.Gravity.NORMAL),
         new Theme("neon_undercity", "<#E381F9>The Neon Undercity", 4, List.of("s", "t", "u", "v", "w"),
             "<#E381F9>THE NEON UNDERCITY", "<gray>Transferred. Watch your back.", Key.key("block.respawn_anchor.charge"),
             List.of("<#EEB6FB>The night shift restocks <mine>.",
-                "<#EEB6FB>Fresh contraband drops into <mine>.")),
+                "<#EEB6FB>Fresh contraband drops into <mine>."), Mine.AREA_MARGIN, Theme.Gravity.NORMAL),
         new Theme("starfall", "<#FE5C59>Starfall", 5, List.of("x", "y", "z"),
             "<#FE5C59>STARFALL", "<gray>Transferred. Mind the edge.", Key.key("block.end_portal.spawn"),
             List.of("<#FE9B93>A meteor shower refills <mine>.",
-                "<#FE9B93>Debris from the belt slams into <mine>.")));
+                "<#FE9B93>Debris from the belt slams into <mine>."),
+            Mine.AREA_MARGIN, // raise it to cover the hand-built asteroids around the mines
+            // Low gravity on the asteroids. A quarter of normal gives 3.7-block jumps; 12 blocks of safe fall (3 ÷ 0.25)
+            // lands as gently as a normal 3-block drop.
+            new Theme.Gravity(0.25, 12)));
 }

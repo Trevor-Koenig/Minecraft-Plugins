@@ -41,7 +41,9 @@ import tech.shulker.thebox.managers.PluginManager;
 import tech.shulker.thebox.listeners.PlayerListener;
 
 public class TheBox extends JavaPlugin {
-    
+
+    private MineManager mineManager; // a field so onDisable can take its gravity off players
+
     @Override
     public void onEnable() {
         
@@ -56,7 +58,7 @@ public class TheBox extends JavaPlugin {
         themeManager.load();
 
         // Mines: load mines.yml and start the automatic-reset timer
-        MineManager mineManager = new MineManager(this, themeManager);
+        mineManager = new MineManager(this, themeManager);
         mineManager.load();
         mineManager.startResetTimer();
         getServer().getPluginManager().registerEvents(mineManager, this); // counts mined blocks for % resets
@@ -173,6 +175,9 @@ public class TheBox extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (mineManager != null) { // null if onEnable failed before creating it
+            mineManager.clearGravity();
+        }
         getLogger().info(getPluginMeta().getName() + " has been disabled!");
     }
     

@@ -29,8 +29,8 @@ With the server **stopped**, put these jars directly in the server's `plugins/` 
 | WorldGuard *(hard dependency)* | Protecting the world: where players can build and mine. TheBox creates the regions for stalls and cells. |
 | VaultUnlocked *(hard dependency)* | Connects TheBox to the economy (registers as "Vault") |
 | LuckPerms *(hard dependency)* | Ranks, prestige and permissions |
-| EssentialsX | The economy behind Vault (balances, `/pay`, `/balance`, `/eco`), and kits |
-| EssentialsX Spawn | Gives new players the starter kit on their first join (section 13). It must be the same build as EssentialsX, or it warns "Version mismatch!", so download both from the same EssentialsX release or CI build. |
+| EssentialsX | The economy behind Vault (balances, `/pay`, `/balance`, `/eco`), and kits. Its last release predates 26.3, so use a dev build: [build #1833](https://ci.ender.zone/job/EssentialsX/1833/) (2.22.1-dev) is the one TheBox is tested with. |
+| EssentialsX Spawn | Gives new players the starter kit on their first join (section 13). It must be the same build as EssentialsX, or it warns "Version mismatch!", so take `EssentialsXSpawn-….jar` from the same dev build. The release pages don't have a 26.3 version yet. |
 | PvPManager | Combat tagging: no commands or logging out mid-fight |
 
 **Optional.**
@@ -43,7 +43,7 @@ With the server **stopped**, put these jars directly in the server's `plugins/` 
 | PlayerParticles | Particle cosmetics for prestige rewards. Check that it supports your Minecraft version first. |
 | PlaceholderAPI | Lets other plugins show TheBox's numbers: `%thebox_earned%` is a player's lifetime `/sell` earnings (section 7). With it, PvPManager's combat action bar also shows its values instead of raw `%pvpmanager_…%` text. |
 | ajLeaderboards | Ranks players by `%thebox_earned%` for the top sellers hologram (section 7). Needs PlaceholderAPI; 2.11.0 or newer for 26.3. |
-| DecentHolograms | Shows the top sellers board as floating text at spawn (section 7). Needs PlaceholderAPI. |
+| DecentHolograms | Shows the top sellers board as floating text at spawn (section 7). Needs PlaceholderAPI; 2.10.2 or newer for 26.3 (earlier 2.10 versions stop updating placeholders on the board). |
 
 Start the server once so every plugin writes its config files, then stop it.
 
@@ -350,6 +350,7 @@ Set a price per item (any item, not just blocks):
 | Item | Price |
 |---|---|
 | `cobblestone`, `stone` | 3 |
+| Mines B–M's base blocks: `andesite`, `granite`, `lime_terracotta`, `yellow_terracotta`, `green_terracotta`, `orange_terracotta`, `brown_terracotta`, `calcite`, `diorite`, `light_blue_terracotta`, `cyan_terracotta`, `white_terracotta` | 3 |
 | `coal` | 15 |
 | `raw_copper` / `copper_ingot` | 6 / 7.50 |
 | `raw_iron` / `iron_ingot` | 32 / 40 |
@@ -359,6 +360,7 @@ Set a price per item (any item, not just blocks):
 | `diamond` | 200 |
 | `emerald` | 300 |
 | `cobbled_deepslate`, `deepslate` | 4 |
+| Mines P–Z's base blocks: `tuff`, `polished_blackstone`, `purple_concrete`, `magenta_concrete`, `purple_glazed_terracotta`, `magenta_glazed_terracotta`, `amethyst_block`, `blackstone`, `basalt`, `end_stone` | 4 |
 | `iron_block` | 360 |
 | `gold_block` | 900 |
 | `diamond_block` | 1800 |
@@ -368,6 +370,7 @@ Set a price per item (any item, not just blocks):
 - Copper, lapis and redstone ores drop several items (2–5, 4–9 and 4–5), so one ore is worth about $21, $45 and $54.
 - Diamonds and emeralds are worth a lot, so mines hold few of them; older ores stay in later mines for variety.
 - Storage blocks are exactly 9× their ingot or gem, so crafting or breaking them up neither makes nor loses money.
+- Each mine's base block (section 9) sells for the same as the stone or deepslate it stands in for, so the mines pay the same. None can be made from cheaper sellable items: andesite, granite and diorite cost cobblestone plus quartz to craft, polished blackstone is crafted from blackstone at the same price, and colored terracotta needs clay.
 
 **Crafted items.** Cells are workshops: crafted items sell for more than their raw materials, so cells, cell upgrades and autocrafters pay off. The markup grows with the work, and stays below 2× so that selling raw stays a fair way to play:
 
@@ -394,16 +397,18 @@ Set a price per item (any item, not just blocks):
 To show the board as a hologram at spawn, install PlaceholderAPI, ajLeaderboards and DecentHolograms (section 1), restart, then in-game:
 1. Register the board: `/ajlb add %thebox_earned%`. Its name is `thebox_earned`.
 2. Add everyone who sold before the board existed: `/ajlb updatealloffline thebox_earned`. Otherwise players only show up once they next join.
-3. Stand where the hologram should be and create it, with a title line:
+3. Stand where the hologram should be and create it, with a title line. `/dh d` makes a *Display* (DecentHolograms 2.10+), which is hidden behind blocks. The older `/dh h` holograms show through walls, so if you made the board with `/dh h` before, remove it first with `/dh h delete topsellers`.
    ```
-   /dh h create topsellers &6&lTop sellers
+   /dh d create TEXT topsellers &6&lTop sellers
    ```
-4. Add a line for each place, 1 to 10. The `1` after `topsellers` is the hologram's page, not the place:
+4. Add a line for each place, 1 to 10:
    ```
-   /dh lines add topsellers 1 &e1. &f%ajlb_lb_thebox_earned_1_alltime_name% &7- &a$%ajlb_lb_thebox_earned_1_alltime_value%
-   /dh lines add topsellers 1 &e2. &f%ajlb_lb_thebox_earned_2_alltime_name% &7- &a$%ajlb_lb_thebox_earned_2_alltime_value%
+   /dh d addline topsellers &e1. &f%ajlb_lb_thebox_earned_1_alltime_name% &7- &a$%ajlb_lb_thebox_earned_1_alltime_value%
+   /dh d addline topsellers &e2. &f%ajlb_lb_thebox_earned_2_alltime_name% &7- &a$%ajlb_lb_thebox_earned_2_alltime_value%
    ```
    …and so on up to 10.
+
+To move it later, stand at the new spot and run `/dh d movehere topsellers`, or use `/dh d move topsellers <x> <y> <z>`.
 
 ajLeaderboards updates about once a minute, so a sale can take a minute to show on the hologram. `/sell top` is always current.
 
@@ -446,7 +451,7 @@ Mines are created from a WorldEdit selection, so this part needs a player. The e
    /thebox mine addblock quarry stone 70
    /thebox mine addblock quarry coal_ore 30
    ```
-   For a mix without stone (deepslate, from N), add its blocks first, then `/thebox mine removeblock quarry stone`: a mine always needs at least one block.
+   For a mix without stone (every suggested mine but A), add its blocks first, then `/thebox mine removeblock quarry stone`: a mine always needs at least one block.
 4. Fill it: `/thebox mine reset quarry`.
 5. Unlock it for a rank. Give it to the **lowest** rank that should have it; higher ranks inherit it:
    ```
@@ -488,11 +493,11 @@ Players who die in a mine drop their items as usual.
 | Mine | Pickaxe | Mix (percent) | Pays about |
 |---|---|---|---|
 | A | copper | `stone` 82, `coal_ore` 11, `copper_ore` 7 | $14k an hour |
-| B | iron, Efficiency II, Unbreaking II | `stone` 90, `coal_ore` 4.5, `copper_ore` 3.5, `iron_ore` 2 | $17k |
-| C | iron, Efficiency II, Unbreaking II | `stone` 88, `coal_ore` 4, `copper_ore` 4, `iron_ore` 4 | $19k |
-| D | diamond, Efficiency III, Unbreaking III | `stone` 91, `coal_ore` 2, `copper_ore` 2, `iron_ore` 3.5, `lapis_ore` 1.5 | $22k |
-| E | diamond, Efficiency III, Unbreaking III | `stone` 89, `coal_ore` 1.5, `copper_ore` 2.5, `iron_ore` 4, `lapis_ore` 3 | $25k |
-| F | diamond, Efficiency III, Unbreaking III | `stone` 88, `coal_ore` 1.5, `copper_ore` 1.5, `iron_ore` 4, `lapis_ore` 3.5, `redstone_ore` 1.5 | $28k |
+| B | iron, Efficiency II, Unbreaking II | `andesite` 90, `coal_ore` 4.5, `copper_ore` 3.5, `iron_ore` 2 | $17k |
+| C | iron, Efficiency II, Unbreaking II | `granite` 88, `coal_ore` 4, `copper_ore` 4, `iron_ore` 4 | $19k |
+| D | diamond, Efficiency III, Unbreaking III | `lime_terracotta` 91, `coal_ore` 2, `copper_ore` 2, `iron_ore` 3.5, `lapis_ore` 1.5 | $22k |
+| E | diamond, Efficiency III, Unbreaking III | `yellow_terracotta` 89, `coal_ore` 1.5, `copper_ore` 2.5, `iron_ore` 4, `lapis_ore` 3 | $25k |
+| F | diamond, Efficiency III, Unbreaking III | `green_terracotta` 88, `coal_ore` 1.5, `copper_ore` 1.5, `iron_ore` 4, `lapis_ore` 3.5, `redstone_ore` 1.5 | $28k |
 
 - Check each mine with the 5-minute test (mine with that pickaxe, `/sell all`, × 12). If one pays well off, change its mix rather than the prices.
 - Players slower than the model take longer; at the pace of the first test, the ladder takes about 150 hours instead of 100.
@@ -501,26 +506,26 @@ Players who die in a mine drop their items as usual.
 
 | Rank | The pickaxe gains | Mix (percent) | Pays about |
 |---|---|---|---|
-| G | Efficiency IV, Fortune I | `stone` 77.5, `obsidian` 0.5, `coal_ore` 1.5, `copper_ore` 2.5, `iron_ore` 7, `lapis_ore` 5.5, `redstone_ore` 5.5 | $56k an hour |
-| H | Efficiency V, Fortune II | `stone` 80, `obsidian` 0.5, `coal_ore` 1, `iron_ore` 6, `lapis_ore` 5, `redstone_ore` 5, `gold_ore` 2.5 | $75k |
-| I | Efficiency VI (stone breaks instantly), Fortune III | `stone` 80, `obsidian` 0.5, `iron_ore` 6, `lapis_ore` 5, `redstone_ore` 5, `gold_ore` 3.5 | $195k |
-| J | Fortune IV | `stone` 79.5, `obsidian` 0.5, `iron_ore` 5, `lapis_ore` 5, `redstone_ore` 5, `gold_ore` 5 | $247k |
-| K | Unbreakable | `stone` 77.5, `obsidian` 0.5, `iron_ore` 5.5, `lapis_ore` 4, `redstone_ore` 5.5, `gold_ore` 6.5, `diamond_ore` 0.5 | $288k |
-| L | Fortune V | `stone` 78.5, `obsidian` 0.5, `iron_ore` 5, `lapis_ore` 4, `redstone_ore` 4, `gold_ore` 6.5, `diamond_ore` 1.5 | $377k |
-| M | Fortune VI | `stone` 79, `obsidian` 0.5, `iron_ore` 4, `lapis_ore` 4, `redstone_ore` 4, `gold_ore` 6.5, `diamond_ore` 2 | $454k |
+| G | Efficiency IV, Fortune I | `orange_terracotta` 77.5, `obsidian` 0.5, `coal_ore` 1.5, `copper_ore` 2.5, `iron_ore` 7, `lapis_ore` 5.5, `redstone_ore` 5.5 | $56k an hour |
+| H | Efficiency V, Fortune II | `brown_terracotta` 80, `obsidian` 0.5, `coal_ore` 1, `iron_ore` 6, `lapis_ore` 5, `redstone_ore` 5, `gold_ore` 2.5 | $75k |
+| I | Efficiency VI (stone breaks instantly), Fortune III | `calcite` 80, `obsidian` 0.5, `iron_ore` 6, `lapis_ore` 5, `redstone_ore` 5, `gold_ore` 3.5 | $195k |
+| J | Fortune IV | `diorite` 79.5, `obsidian` 0.5, `iron_ore` 5, `lapis_ore` 5, `redstone_ore` 5, `gold_ore` 5 | $247k |
+| K | Unbreakable | `light_blue_terracotta` 77.5, `obsidian` 0.5, `iron_ore` 5.5, `lapis_ore` 4, `redstone_ore` 5.5, `gold_ore` 6.5, `diamond_ore` 0.5 | $288k |
+| L | Fortune V | `cyan_terracotta` 78.5, `obsidian` 0.5, `iron_ore` 5, `lapis_ore` 4, `redstone_ore` 4, `gold_ore` 6.5, `diamond_ore` 1.5 | $377k |
+| M | Fortune VI | `white_terracotta` 79, `obsidian` 0.5, `iron_ore` 4, `lapis_ore` 4, `redstone_ore` 4, `gold_ore` 6.5, `diamond_ore` 2 | $454k |
 | N | Efficiency IX (ores and deepslate break instantly) | `deepslate` 82, `iron_ore` 3.5, `lapis_ore` 2.5, `redstone_ore` 3.5, `gold_ore` 6, `diamond_ore` 2, `emerald_ore` 0.5 | $655k |
 | O | Fortune VII | `deepslate` 83.5, `iron_ore` 3, `lapis_ore` 2, `redstone_ore` 3, `gold_ore` 5.5, `diamond_ore` 2, `emerald_ore` 1 | $766k |
-| P | Fortune VIII | `deepslate` 85, `iron_ore` 2, `lapis_ore` 2, `redstone_ore` 2, `gold_ore` 5, `diamond_ore` 2.5, `emerald_ore` 1.5 | $941k |
-| Q | Fortune IX | `deepslate` 85, `iron_ore` 2, `lapis_ore` 2, `redstone_ore` 2, `gold_ore` 4, `diamond_ore` 3, `emerald_ore` 2 | $1.1M |
-| R | Fortune X | `deepslate` 85.5, `iron_ore` 2, `lapis_ore` 1, `redstone_ore` 2, `gold_ore` 4, `diamond_ore` 3, `emerald_ore` 2.5 | $1.3M |
-| S | Fortune XI | `deepslate` 85.5, `iron_ore` 1, `lapis_ore` 1, `redstone_ore` 2, `gold_ore` 4, `diamond_ore` 3.5, `emerald_ore` 3 | $1.6M |
-| T | Fortune XII | `deepslate` 86.5, `iron_ore` 1, `redstone_ore` 1, `gold_ore` 3.5, `diamond_ore` 4, `emerald_ore` 4 | $2.0M |
-| U | Fortune XIII | `deepslate` 86.5, `redstone_ore` 1, `gold_ore` 3.5, `diamond_ore` 4, `emerald_ore` 5 | $2.4M |
-| V | Efficiency XII (deepslate ores and storage blocks break instantly) | `deepslate` 81.5, `iron_block` 0.5, `gold_block` 0.5, `deepslate_iron_ore` 1.5, `deepslate_redstone_ore` 1.5, `deepslate_gold_ore` 4, `deepslate_diamond_ore` 5, `deepslate_emerald_ore` 5.5 | $2.8M |
-| W | Fortune XIV | `deepslate` 83, `gold_block` 0.5, `diamond_block` 0.5, `deepslate_gold_ore` 4.5, `deepslate_diamond_ore` 5, `deepslate_emerald_ore` 6.5 | $3.4M |
-| X | Fortune XV | `deepslate` 82, `diamond_block` 0.5, `emerald_block` 0.5, `deepslate_gold_ore` 4, `deepslate_diamond_ore` 5.5, `deepslate_emerald_ore` 7.5 | $4.1M |
-| Y | Fortune XVI | `deepslate` 80.5, `diamond_block` 0.5, `emerald_block` 0.5, `deepslate_gold_ore` 3.5, `deepslate_diamond_ore` 6, `deepslate_emerald_ore` 9 | $4.8M |
-| Z | Fortune XVII | `deepslate` 79, `diamond_block` 0.5, `emerald_block` 0.5, `deepslate_gold_ore` 3.5, `deepslate_diamond_ore` 5.5, `deepslate_emerald_ore` 11 | $5.7M |
+| P | Fortune VIII | `tuff` 85, `iron_ore` 2, `lapis_ore` 2, `redstone_ore` 2, `gold_ore` 5, `diamond_ore` 2.5, `emerald_ore` 1.5 | $941k |
+| Q | Fortune IX | `tuff` 85, `iron_ore` 2, `lapis_ore` 2, `redstone_ore` 2, `gold_ore` 4, `diamond_ore` 3, `emerald_ore` 2 | $1.1M |
+| R | Fortune X | `polished_blackstone` 85.5, `iron_ore` 2, `lapis_ore` 1, `redstone_ore` 2, `gold_ore` 4, `diamond_ore` 3, `emerald_ore` 2.5 | $1.3M |
+| S | Fortune XI | `purple_concrete` 85.5, `iron_ore` 1, `lapis_ore` 1, `redstone_ore` 2, `gold_ore` 4, `diamond_ore` 3.5, `emerald_ore` 3 | $1.6M |
+| T | Fortune XII | `magenta_concrete` 86.5, `iron_ore` 1, `redstone_ore` 1, `gold_ore` 3.5, `diamond_ore` 4, `emerald_ore` 4 | $2.0M |
+| U | Fortune XIII | `purple_glazed_terracotta` 86.5, `redstone_ore` 1, `gold_ore` 3.5, `diamond_ore` 4, `emerald_ore` 5 | $2.4M |
+| V | Efficiency XII (deepslate ores and storage blocks break instantly) | `magenta_glazed_terracotta` 81.5, `iron_block` 0.5, `gold_block` 0.5, `deepslate_iron_ore` 1.5, `deepslate_redstone_ore` 1.5, `deepslate_gold_ore` 4, `deepslate_diamond_ore` 5, `deepslate_emerald_ore` 5.5 | $2.8M |
+| W | Fortune XIV | `amethyst_block` 83, `gold_block` 0.5, `diamond_block` 0.5, `deepslate_gold_ore` 4.5, `deepslate_diamond_ore` 5, `deepslate_emerald_ore` 6.5 | $3.4M |
+| X | Fortune XV | `blackstone` 82, `diamond_block` 0.5, `emerald_block` 0.5, `deepslate_gold_ore` 4, `deepslate_diamond_ore` 5.5, `deepslate_emerald_ore` 7.5 | $4.1M |
+| Y | Fortune XVI | `basalt` 80.5, `diamond_block` 0.5, `emerald_block` 0.5, `deepslate_gold_ore` 3.5, `deepslate_diamond_ore` 6, `deepslate_emerald_ore` 9 | $4.8M |
+| Z | Fortune XVII | `end_stone` 79, `diamond_block` 0.5, `emerald_block` 0.5, `deepslate_gold_ore` 3.5, `deepslate_diamond_ore` 5.5, `deepslate_emerald_ore` 11 | $5.7M |
 
 - **Efficiency only really pays off once blocks break instantly.** Until then, break times round up to whole ticks and every block is followed by a 6-tick pause, so Efficiency IV and V save just one tick per stone block over III: what G's and H's pickaxes mostly add is Fortune. With a diamond pickaxe:
   - VI breaks hardness 1.5 instantly (stone, blackstone, tuff, terracotta), which nearly triples how fast players mine;
@@ -528,7 +533,8 @@ Players who die in a mine drop their items as usual.
   - XII breaks hardness 5 (deepslate ores, iron, diamond and emerald blocks).
   - VII, VIII and X only matter for concrete, for cobblestone and bricks, and for cobbled deepslate and deepslate bricks, so the track skips them. Use them if you build themed mines from those blocks.
 - **Fortune multiplies ore drops** (I ×1.3, III ×2.2, X ×5.6, XVII ×9), but not fillers, obsidian or storage blocks. That's why these mines lean on ores: each Fortune level makes every ore worth more, so mines get richer without more ore in them. They're 13–22% ore.
-- **Any filler works** if that rank's pickaxe breaks it instantly: hardness 1.5 or less from I, 3 from N, 5 from V. Price it near stone's $3, or deepslate's $4.
+- **Base blocks follow the band's theme** (section 17), one per mine. Each band goes through its list in order, and a block that repeats covers neighbouring mines (N and O deepslate, P and Q tuff). With that rank's pickaxe, each one breaks as fast as the stone or deepslate it stands in for, and it sells for the same (section 7), so the pay column still holds. Their visible faces (the surface) are the base block too.
+- **Any other filler works** if that rank's pickaxe breaks it instantly: hardness 1.5 or less from I, 3 from N, 5 from V. Price it near stone's $3, or deepslate's $4.
 - **Obsidian** (G–M) is there so players can build enchanting tables. It never breaks instantly: about 2 seconds a block with Efficiency VI.
 - **Making the pickaxes:** give each one with its enchantments and a high `repair_cost`, so anvils can't add more. For example, G's:
   ```
@@ -762,8 +768,9 @@ Players pick their particles with `/pp`.
   starter:
     delay: -1
     items:
-      - copper_pickaxe 1
+      - copper_pickaxe 1 lore:&7Kit_item
 ```
+The lore line keeps it from being sold (see "Kit items can't be sold" below).
 - **Grant no permission for it.** The first-join kit is "given regardless of cost and permissions". If players also had `essentials.kits.starter`, they could claim it a second time with `/kit starter`.
 - **Only players EssentialsX has never seen get it.** It decides that from its own user data, so a season reset gives everyone the kit again, because it deletes `plugins/Essentials/userdata/` (section 16).
 - **To test,** use an account that has never joined. Or, with the server stopped, delete that account's file in `plugins/Essentials/userdata/`.
@@ -798,18 +805,22 @@ Its cooldown is `heal-cooldown` in `plugins/Essentials/config.yml` (default 60 s
 - `skip-used-one-time-kits-from-kit-list: true`, so `/kit` stops listing a one-time kit (the PvP kits below) once it's claimed.
 - Leave `drop-items-if-full: false`. A kit that doesn't fit is then refused instead of dropped on the ground, where another player could grab it in a PvP mine.
 
+**Kit items can't be sold.** `/sell` only buys plain items, exactly as crafted: anything renamed, enchanted, damaged or otherwise changed is refused. So plain kit items get a lore line, `lore:&7Kit_item` in EssentialsX's item format (underscores become spaces), which shows under the item's name. Players have no way to remove lore. A custom name wouldn't work: an anvil with the name field left blank puts the default name back, and the item could be sold again.
+- Enchanted kit items can't be sold anyway: the iron and diamond pickaxes in kits `d` to `h`, Protection armor, and the pickaxes in kits `i` to `z`. The `kits.yml` lines below still give the enchanted ones the lore, so kit items look alike. Kits `i` to `z`, made with `/createkit`, can do without.
+- The food kit needs nothing: food has no price (section 7).
+
 **Rank kits: a spare pickaxe every 2 days.** Each rank has a kit named after it (`/kit d`) with the pickaxe from two ranks below. It's insurance: a player who loses their pickaxe in a PvP mine can still mine the mine two ranks back at its full income while they save for a new one. Ranks inherit, so a player can claim every lower rank's kit too, and they can give or sell the spares to other players. Both are allowed on purpose.
 - `a`, `b`, `c`: a copper pickaxe
 - `d`, `e`: an iron pickaxe with Efficiency II and Unbreaking II
 - `f`, `g`, `h`: a diamond pickaxe with Efficiency III and Unbreaking III
 - `i` to `z`: the pickaxe of the rank two below, so `i` gives G's and `z` gives X's (section 9, "Making the pickaxes")
 
-The first eight can go straight into `kits.yml`. Kit `a` is shown; `b` and `c` are the same. Kits `d` and `e` use `iron_pickaxe 1 efficiency:2 unbreaking:2`, and `f`, `g` and `h` use `diamond_pickaxe 1 efficiency:3 unbreaking:3`:
+The first eight can go straight into `kits.yml`. Kit `a` is shown; `b` and `c` are the same. Kits `d` and `e` use `iron_pickaxe 1 efficiency:2 unbreaking:2 lore:&7Kit_item`, and `f`, `g` and `h` use `diamond_pickaxe 1 efficiency:3 unbreaking:3 lore:&7Kit_item`:
 ```yaml
   a:
     delay: 172800
     items:
-      - copper_pickaxe 1
+      - copper_pickaxe 1 lore:&7Kit_item
 ```
 Kits `i` to `z` need item components that this format can't write, so make them in-game. For each one, empty your inventory, `/give` yourself the pickaxe from section 9, and run `/createkit i 172800`: `/createkit` saves everything you're carrying as the kit, and 172800 seconds is 2 days. Then grant each kit to its rank in the console:
 ```
@@ -847,43 +858,43 @@ lp group z permission set essentials.kits.z true
   pvp1:
     delay: -1
     items:
-      - iron_helmet 1
-      - iron_chestplate 1
-      - iron_leggings 1
-      - iron_boots 1
-      - iron_sword 1
-      - shield 1
+      - iron_helmet 1 lore:&7Kit_item
+      - iron_chestplate 1 lore:&7Kit_item
+      - iron_leggings 1 lore:&7Kit_item
+      - iron_boots 1 lore:&7Kit_item
+      - iron_sword 1 lore:&7Kit_item
+      - shield 1 lore:&7Kit_item
   pvp2:
     delay: -1
     items:
-      - diamond_helmet 1
-      - diamond_chestplate 1
-      - diamond_leggings 1
-      - diamond_boots 1
-      - diamond_sword 1
+      - diamond_helmet 1 lore:&7Kit_item
+      - diamond_chestplate 1 lore:&7Kit_item
+      - diamond_leggings 1 lore:&7Kit_item
+      - diamond_boots 1 lore:&7Kit_item
+      - diamond_sword 1 lore:&7Kit_item
   pvp3:
     delay: -1
     items:
-      - diamond_helmet 1 protection:3
-      - diamond_chestplate 1 protection:3
-      - diamond_leggings 1 protection:3
-      - diamond_boots 1 protection:3
-      - diamond_sword 1 sharpness:3
+      - diamond_helmet 1 protection:3 lore:&7Kit_item
+      - diamond_chestplate 1 protection:3 lore:&7Kit_item
+      - diamond_leggings 1 protection:3 lore:&7Kit_item
+      - diamond_boots 1 protection:3 lore:&7Kit_item
+      - diamond_sword 1 sharpness:3 lore:&7Kit_item
   pvp4:
     delay: -1
     items:
-      - netherite_helmet 1
-      - netherite_chestplate 1
-      - netherite_leggings 1
-      - netherite_boots 1
-      - netherite_sword 1
+      - netherite_helmet 1 lore:&7Kit_item
+      - netherite_chestplate 1 lore:&7Kit_item
+      - netherite_leggings 1 lore:&7Kit_item
+      - netherite_boots 1 lore:&7Kit_item
+      - netherite_sword 1 lore:&7Kit_item
   pvp5:
     delay: -1
     items:
-      - netherite_helmet 1 protection:4
-      - netherite_chestplate 1 protection:4
-      - netherite_leggings 1 protection:4
-      - netherite_boots 1 protection:4
+      - netherite_helmet 1 protection:4 lore:&7Kit_item
+      - netherite_chestplate 1 protection:4 lore:&7Kit_item
+      - netherite_leggings 1 protection:4 lore:&7Kit_item
+      - netherite_boots 1 protection:4 lore:&7Kit_item
 ```
 ```
 lp group d permission set essentials.kits.pvp1 true
@@ -929,9 +940,10 @@ As a **non-op** player:
    - PvP levels need two non-op players a mine apart. In the lower player's mine, neither can hit the other (melee, arrows, or a splash or lingering potion of poison); the attacker sees "Only players at this mine's level can fight here." The same goes a few blocks outside the mine. Afterwards `/mine` still works for both: a blocked hit must not combat-tag anyone.
 4. Mine some blocks, then run `/sell all` (or `/sell hand`, `/sell worth`). `/sell top` lists you with what you've earned; after another `/sell all` your total goes up. With the hologram (section 7), you're on it within a minute.
 5. `/rankup list` shows the ladder with the player's rank marked and the next rank's cost; `/rankup help` lists the rank commands. `/rankup` buys the next rank (`/rankup max` buys as many as you can afford). The whole server sees an announcement.
-   - Ranks show in their colors (section 6). After ranking up to D, chat says what D unlocks, e.g. "New at D: Mine D, Cell upgrade to 5x5, /kit d, /kit pvp1"; clicking `/kit d` claims the kit, and running it again says it's on cooldown. `/kit pvp1` works once. In `/rankup list`, pointing at a rank shows what it unlocks, and the next rank's unlocks are listed under the ladder.
+   - Ranks show in their colors (section 6). After ranking up to D, chat says what D unlocks, e.g. "New at D: Mine D, Cell upgrade to 5x5, /kit d, /kit pvp1"; clicking `/kit d` claims the kit, and running it again says it's on cooldown. `/kit pvp1` works once, its items show "Kit item" under their names, and `/sell hand` refuses them. In `/rankup list`, pointing at a rank shows what it unlocks, and the next rank's unlocks are listed under the ladder.
    - At C, `/effects` opens a menu with Night Vision on (it shimmers) and Speed locked. Away from mines you keep Night Vision; switch it off and it goes, but walking into a mine's area still gives it, and it goes again when you walk out. Switched back on, it comes back after drinking milk and after dying.
    - A brand-new player sees "THE YARD" a few seconds after joining. Ranking up from C to D shows "THE SLUDGEWORKS" with a bubbling sound; D to E shows nothing. `/thebox mine reset` on a level 1 mine sends players near it a Sludgeworks message such as "Fresh sludge pours into …", and after `/prestige confirm` the player sees "THE YARD" again.
+   - Low gravity: give a test mine `/thebox mine settheme <mine> starfall` and walk into it. Jumps go about 3.7 blocks high, and `/attribute @s minecraft:gravity get` says 0.02 (`minecraft:safe_fall_distance` says 12). More than 8 blocks from the mine, it's back to 0.08 and 3. Die in the mine and respawn away from it: it's back to normal straight away, without moving.
 6. Walking into a locked mine is blocked with "You haven't unlocked … yet."
 7. At the top rank, `/prestige` explains what prestiging does, and `/prestige confirm` does it: the player goes back to `a`, joins `p1`, their balance goes to 0 (items and cell stay), and the server sees an announcement. Chat now shows `[P1] [A]` before their name, and `/sell top` still has their total.
 8. A non-op player without `thebox.marketplace.main` gets "You haven't unlocked any markets yet." from `/market`, and `/market main` says "You haven't unlocked that market." With it: `/market`, stand in a free stall, `/market rent`. Building works in your stall and nowhere else in the market. With `day-length-minutes: 2` and auto-renew off, the stall freezes after 2 minutes; after the grace period its contents show up in `/market claim`.
@@ -1028,14 +1040,15 @@ Each PvP band has a theme: a place the prison sends players to as they climb, ea
 | The Cryo Vault | I–M | level 2 | A prison where inmates were frozen, rows of them in ice under cold blue light. |
 | The Blackout | N–R | level 3 | A deep mining colony that lost power, lit by blue soul lanterns. Deepslate starts breaking instantly here. |
 | The Neon Undercity | S–W | level 4 | A cyberpunk market under the prison: neon tubes and holographic signs. |
-| Starfall | X–Z | level 5 | Asteroids in the void under a permanent night sky, each mine a box inside a hand-built asteroid. Falling off is deadly, and items that fall into the void are gone. |
+| Starfall | X–Z | level 5 | Asteroids in the void under a permanent night sky, each mine a box inside a hand-built asteroid, with low gravity around the mines. Falling off is deadly, and items that fall into the void are gone. |
 
 What a theme does:
 - **A band title.** Ranking up into a band shows its title, with a line under it and a sound: "THE BLACKOUT", "Transferred. Bring a light." New players see The Yard's a few seconds after their first join, and a player who prestiges sees it again.
 - **Reset messages.** When a mine resets, players near it get one of its theme's messages instead of "Mine … has been reset", such as "A meteor shower refills Asteroid Y". `<mine>` in a message is the mine's name, so give mines names that read well in a sentence (`/thebox mine setname`).
+- **Gravity.** Around Starfall's mines, gravity is a quarter of normal, so jumps go about 3.7 blocks high, and players can drop 12 blocks without getting hurt. It reaches `theme-margin` blocks past each mine: 8 by default, the same as the mine's area, where PvP and Night Vision apply. Once the asteroids are built, raise it so the low gravity covers them.
 - **Which mines:** a mine uses the theme of its PvP level (section 9, step 6). To give one mine another theme, for example an event mine at level 0: `/thebox mine settheme <mine> <theme>`, and `auto` to go back. `/thebox mine list` shows each mine's theme.
 
-Mobs, the currencies they drop, band shops and Starfall's low gravity come in later versions of TheBox.
+Mobs, the currencies they drop and band shops come in later versions of TheBox.
 
 **Customizing.** Edit `themes.yml`, then run `/thebox theme reload`. `/thebox theme preview <theme>` shows you a theme's title and one of its reset messages, and `/thebox theme list` lists them all. One theme looks like this:
 ```yaml
@@ -1050,10 +1063,13 @@ themes:
     reset-messages:
       - "<#AAC8FF>Something rebuilt <mine> in the dark."
       - "<#AAC8FF>The tunnels of <mine> collapse and settle."
+    theme-margin: 8
 ```
 - Names, titles and messages use [MiniMessage](https://docs.papermc.io/adventure/minimessage/format/). The default colors follow the rank colors (section 6).
 - `sound` is a Minecraft sound id, as in `/playsound`; leave it empty (`""`) for none.
 - `ranks` decides when the title shows: ranking up into one of them from a rank outside the list. Keep them in line with the mines' levels, so the title shows when players reach the band's mines.
+- `theme-margin` is how many blocks past each of the theme's mines its effects reach (for now, gravity).
+- `gravity` (a multiple of normal) and `safe-fall-distance` (in blocks; 3 is normal) only appear on themes that change them: Starfall has `gravity: 0.25` and `safe-fall-distance: 12`. You can add them to any theme. To turn Starfall's low gravity off, set `gravity: 1`; deleting the line brings back the default.
 - You can rename, rewrite or add themes. Settings that later versions add (mobs, shops) get their defaults only in the six built-in themes, so a theme you add starts without them. Delete `themes.yml` and restart to get the defaults back.
 
 ## Network (later)
